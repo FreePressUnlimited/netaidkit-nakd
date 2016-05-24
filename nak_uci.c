@@ -28,7 +28,9 @@ static struct uci_package *__load_uci_package(const char *name) {
     nakd_assert(name != NULL);
     
     if (uci_load(_uci_ctx, name, &pkg)) {
-        nakd_log(L_CRIT, "Couldn't load UCI package \"%s\"", name);
+        char *uci_err;
+        uci_get_errorstr(_uci_ctx, &uci_err, "");
+        nakd_log(L_CRIT, "Couldn't load UCI package \"%s\": %s", name, uci_err);
         return NULL;
     }
     return pkg;
