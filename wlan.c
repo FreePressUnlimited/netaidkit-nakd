@@ -37,6 +37,18 @@ static time_t _last_scan;
 
 static json_object *_stored_networks;
 static json_object *_current_network;
+time_t _connected_timestamp;
+
+int nakd_wlan_connection_uptime(void) {
+    int uptime;
+    pthread_mutex_lock(&_wlan_mutex);
+    if (_connected_timestamp)
+        uptime = time(NULL) - _connected_timestamp + 1;
+    else
+        uptime = 0;
+    pthread_mutex_unlock(&_wlan_mutex);
+    return uptime;
+}
 
 const char *nakd_wlan_interface_name(void) {
     return _wlan_interface_name;
@@ -640,6 +652,7 @@ static int _wlan_connect(json_object *jnetwork) {
     }
 
     __swap_current_network(jnetwork);
+    _connected_timestamp = time(NULL);
     return _reload_wireless_config();
 }
 
@@ -682,6 +695,7 @@ int nakd_wlan_disconnect(void) {
         goto unlock;
     }
 
+    _connected_timestamp = 0;
     __swap_current_network(NULL);
     status = _reload_wireless_config();
 

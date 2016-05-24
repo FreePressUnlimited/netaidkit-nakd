@@ -56,6 +56,7 @@ static char *_gateway_ip(void) {
 
 static void _connectivity_update(void *priv) {
     pthread_mutex_lock(&_connectivity_mutex);
+
     /* prefer ethernet */
     if (_ethernet_wan_available() != 0) {
         if (!nakd_interface_disabled(NAKD_WLAN))
@@ -81,6 +82,11 @@ static void _connectivity_update(void *priv) {
                                                     current_ssid);
             nakd_wlan_disconnect();
         } else {
+            /* let things settle before probing network connectivity */
+            int uptime = nakd_wlan_connection_uptime();
+            if (uptime && uptime < 5)
+                goto unlock;
+
             char *gw_ip = _gateway_ip(); 
             nakd_log(L_DEBUG, "\"%s\" WLAN is still in range,"
                        " arp-pinging the default gateway: %s",
