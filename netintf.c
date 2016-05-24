@@ -419,6 +419,7 @@ json_object *cmd_interface_state(json_object *jcmd, void *arg) {
         if (jstate == NULL) {
             nakd_log(L_DEBUG, "There's no %s interface in current interface "
                        "status, continuing.", nakd_interface_type[intf->id]);
+            continue;
         }
 
         json_object_object_add(jresult, nakd_interface_type[intf->id],
