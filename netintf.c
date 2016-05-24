@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <pthread.h>
 #include <json-c/json.h>
 #include "netintf.h"
@@ -45,7 +46,7 @@ static pthread_cond_t _netintf_cv;
 static pthread_mutex_t _netintf_mutex;
 
 static int _netintf_updates_disabled;
-static int _netintf_updates_timeout;
+static time_t _netintf_updates_timeout;
 
 struct carrier_event {
     /* eg. ETHERNET_WAN_PLUGGED */
