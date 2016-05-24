@@ -522,6 +522,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
     const char *section_name = ifs->e.name;
 
     const char *ssid = nakd_net_ssid(jnetwork);
+    nakd_assert(ssid != NULL);
     struct uci_ptr ssid_ptr = {
         .package = pkg_name,
         .section = section_name,
@@ -529,25 +530,28 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
         .value = ssid 
     };
     /* this function is called from nakd_uci_, no locking required for uci_set */
-    nakd_assert(!uci_set(ctx, &ssid_ptr));
+    nakd_uci_set_nolock(&ssid_ptr);
 
     const char *key = nakd_net_key(jnetwork);
-    struct uci_ptr key_ptr = {
-        .package = pkg_name,
-        .section = section_name,
-        .option = "key",
-        .value = key
-    };
-    nakd_assert(!uci_set(ctx, &key_ptr));
+    if (key != NULL) {
+        struct uci_ptr key_ptr = {
+            .package = pkg_name,
+            .section = section_name,
+            .option = "key",
+            .value = key
+        };
+        nakd_uci_set_nolock(&key_ptr);
+    }
 
     const char *encryption = nakd_net_encryption(jnetwork);
+    nakd_assert(encryption != NULL);
     struct uci_ptr enc_ptr = {
         .package = pkg_name,
         .section = section_name,
         .option = "encryption",
         .value = encryption
     };
-    nakd_assert(!uci_set(ctx, &enc_ptr));
+    nakd_uci_set_nolock(&enc_ptr);
 
     int disabled = nakd_net_disabled(jnetwork);
     struct uci_ptr disabled_ptr = {
@@ -556,7 +560,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
         .option = "disabled",
         .value = disabled ? "1" : "0"
     };
-    nakd_assert(!uci_set(ctx, &disabled_ptr));
+    nakd_uci_set_nolock(&disabled_ptr);
     return 0;
 }
 
@@ -636,6 +640,10 @@ static int _validate_ap_config(json_object *jnetwork) {
            nakd_net_ssid(jnetwork) == NULL ||
            nakd_net_encryption(jnetwork) == NULL ||
            nakd_net_disabled(jnetwork) == -1;
+}
+
+static int _validate_wlan_config(json_object *jnetwork) {
+    return nakd_net_ssid(jnetwork) == NULL;
 }
 
 static int _configure_ap(json_object *jnetwork) {
@@ -768,6 +776,9 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
         json_object_get_type(jparams) != json_type_object) {
         goto params;
     }
+
+    if (_validate_wlan_config(jparams))
+        goto params;
 
     json_object *jstore = NULL;
     json_object_object_get_ex(jparams, "store", &jstore);

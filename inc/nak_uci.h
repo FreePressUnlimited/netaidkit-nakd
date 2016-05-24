@@ -20,5 +20,6 @@ int nakd_uci_save(struct uci_package *pkg);
 int nakd_uci_commit(struct uci_package **pkg, bool overwrite);
 int nakd_unload_uci_package(struct uci_package *pkg);
 int nakd_uci_set(struct uci_ptr *ptr);
+int nakd_uci_set_nolock(struct uci_ptr *ptr);
 
 #endif

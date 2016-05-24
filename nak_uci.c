@@ -173,9 +173,19 @@ int nakd_uci_option_foreach_pkg(const char *package, const char *option_name,
     return status;
 }
 
+int nakd_uci_set_nolock(struct uci_ptr *ptr) {
+    if (uci_set(_uci_ctx, ptr)) {
+        char *uci_err;
+        uci_get_errorstr(_uci_ctx, &uci_err, "");
+        nakd_log(L_CRIT, "UCI: %s", uci_err);
+        return 1;
+    }
+    return 0;
+}
+
 int nakd_uci_set(struct uci_ptr *ptr) {
     pthread_mutex_lock(&_uci_mutex);
-    int status = uci_set(_uci_ctx, ptr);
+    int status = nakd_uci_set_nolock(ptr);
     pthread_mutex_unlock(&_uci_mutex);
     return status;
 }
