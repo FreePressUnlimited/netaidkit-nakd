@@ -176,18 +176,18 @@ static json_object *_create_network_entry(const char *ssid, const char *key) {
     nakd_assert(enc != NULL); 
 
     json_object *jssid = json_object_new_string(ssid);
-    json_object *jkey = json_object_new_string(key);
+    json_object *jkey = key == NULL ? NULL : json_object_new_string(key);
     json_object *jenc = json_object_new_string(enc);
 
     json_object *jentry = json_object_new_object(); 
     json_object_object_add(jentry, "ssid", jssid);
-    json_object_object_add(jentry, "key", jkey);
+    if (jkey != NULL)
+        json_object_object_add(jentry, "key", jkey);
     json_object_object_add(jentry, "encryption", jenc);
     return jentry;
 }
 
-static int __store_network(json_object *jnetwork, const char *key) {
-    const char *ssid = nakd_net_ssid(jnetwork);
+static int __store_network(const char *ssid, const char *key) {
     if (__get_stored_network(ssid) != NULL)
         __remove_stored_network(ssid);
 
@@ -554,13 +554,15 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
     nakd_uci_set_nolock(&enc_ptr);
 
     int disabled = nakd_net_disabled(jnetwork);
-    struct uci_ptr disabled_ptr = {
-        .package = pkg_name,
-        .section = section_name,
-        .option = "disabled",
-        .value = disabled ? "1" : "0"
-    };
-    nakd_uci_set_nolock(&disabled_ptr);
+    if (disabled != -1) {
+        struct uci_ptr disabled_ptr = {
+            .package = pkg_name,
+            .section = section_name,
+            .option = "disabled",
+            .value = disabled ? "1" : "0"
+        };
+        nakd_uci_set_nolock(&disabled_ptr);
+    }
     return 0;
 }
 
@@ -638,7 +640,6 @@ static int _wlan_connect(json_object *jnetwork) {
 static int _validate_ap_config(json_object *jnetwork) {
     return nakd_net_key(jnetwork) == NULL ||
            nakd_net_ssid(jnetwork) == NULL ||
-           nakd_net_encryption(jnetwork) == NULL ||
            nakd_net_disabled(jnetwork) == -1;
 }
 
@@ -800,7 +801,7 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
 
     const char *ssid = nakd_net_ssid(jparams);
     const char *key = nakd_net_key(jparams);
-    if (ssid == NULL || key == NULL)
+    if (ssid == NULL)
         goto params;
 
     if (_wlan_connect(jparams)) {
@@ -813,7 +814,7 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
 
     if (jstore != NULL) {
        if (json_object_get_boolean(jstore)) {
-           if (__store_network(jparams, key)) {
+           if (__store_network(ssid, key)) {
                 jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
                       "Internal error - couldn't store network credentials. "
                                                                "Connected.");
@@ -847,6 +848,11 @@ json_object *cmd_configure_ap(json_object *jcmd, void *arg) {
 
     if (_validate_ap_config(jparams))
         goto params;
+
+    /* force encryption to psk2 */
+    json_object_object_del(jparams, "encryption");
+    json_object *jencryption = json_object_new_string("psk2");
+    json_object_object_add(jparams, "encryption", jencryption);
 
     if (_configure_ap(jparams)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
