@@ -462,8 +462,13 @@ static void _wlan_scan_iwinfo_work(void *priv) {
 } 
 
 static void _cleanup_iwinfo_scan(struct iwinfo_scan_priv *scan) {
-    free(scan->networks);
-    iwinfo_finish();
+    if (scan->networks != NULL)
+        free(scan->networks);
+    if (scan->iwctx != NULL)
+        iwinfo_finish();
+
+    scan->networks = NULL;
+    scan->iwctx = NULL;
 }
 
 static void _wlan_scan_iwinfo_canceled(void *priv) {
