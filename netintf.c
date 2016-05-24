@@ -45,6 +45,7 @@ static pthread_cond_t _netintf_cv;
 static pthread_mutex_t _netintf_mutex;
 
 static int _netintf_updates_disabled;
+static int _netintf_updates_timeout;
 
 struct carrier_event {
     /* eg. ETHERNET_WAN_PLUGGED */
@@ -343,9 +344,13 @@ cleanup:
     json_tokener_free(jtok);
 }
 
-void nakd_netintf_disable_updates(void) {
+void nakd_netintf_disable_updates(int seconds) {
     pthread_mutex_lock(&_netintf_mutex);
     _netintf_updates_disabled = 1;
+    if (seconds)
+        _netintf_updates_timeout = time(NULL) + seconds;
+    else
+        _netintf_updates_timeout = 0;
     pthread_mutex_unlock(&_netintf_mutex);
     nakd_log(L_DEBUG, "Network interface state updates disabled.");
 }
@@ -359,6 +364,12 @@ void nakd_netintf_enable_updates(void) {
 
 static void _netintf_update(void *priv) {
     pthread_mutex_lock(&_netintf_mutex);
+    if (_netintf_updates_disabled) {
+        if (_netintf_updates_timeout) {
+            if (time(NULL) > _netintf_updates_timeout)
+                _netintf_updates_disabled = 0;
+        }
+    }
     int updates_disabled = _netintf_updates_disabled;
     pthread_mutex_unlock(&_netintf_mutex);
     if (updates_disabled)
@@ -393,7 +404,7 @@ static int _netintf_init(void) {
 }
 
 static int _netintf_cleanup(void) {
-    nakd_netintf_disable_updates();
+    nakd_netintf_disable_updates(0);
     nakd_timer_remove(_netintf_update_timer);
     pthread_mutex_destroy(&_netintf_mutex);
     return 0;

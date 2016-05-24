@@ -577,7 +577,7 @@ static int _reload_wireless_config(void) {
     int status = 0;
 
     /* avoid spurious state updates */
-    nakd_netintf_disable_updates();
+    nakd_netintf_disable_updates(5);
 
     nakd_log(L_INFO, "Restarting WLAN.");
     char *output;
@@ -591,7 +591,6 @@ static int _reload_wireless_config(void) {
     free(output);
 
 unlock:
-    nakd_netintf_enable_updates();
     return status;
 }
 

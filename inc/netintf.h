@@ -19,7 +19,7 @@ char *nakd_interface_name(enum nakd_interface id);
 int nakd_carrier_present(enum nakd_interface id);
 int nakd_iface_state_available(void);
 
-void nakd_netintf_disable_updates(void);
+void nakd_netintf_disable_updates(int seconds);
 void nakd_netintf_enable_updates(void);
 
 json_object *cmd_interface_state(json_object *jcmd, void *arg);
