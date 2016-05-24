@@ -46,6 +46,14 @@ void nakd_log_close() {
     closelog();
 }
 
+static const char *_ansi_color[] = {
+    [L_CRIT] = "31",
+    [L_WARNING] = "33",
+    [L_NOTICE] = "35",
+    [L_INFO] = "32",
+    [L_DEBUG] = "36"
+};
+
 void _nakd_log(int priority, const char *format, const char *func,
                                 const char *file, int line, ...) {
     va_list vl;
@@ -61,9 +69,9 @@ void _nakd_log(int priority, const char *format, const char *func,
 
         vsyslog(syslog_loglevel[priority], _fmt, vl);
     } else {
-        snprintf(_fmt, sizeof(_fmt), "[%s] [%s:%d, %s] %s\n",
-            loglevel_string[priority], file, line, func, format);
-
+        snprintf(_fmt, sizeof(_fmt), "\x1b[%sm[%s] [%s:%d, %s] %s\x1b[37m\n",
+                _ansi_color[priority], loglevel_string[priority], file, line,
+                                                               func, format);
         vfprintf(stderr, _fmt, vl);
     }
 
