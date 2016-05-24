@@ -207,6 +207,18 @@ static int __store_network(json_object *jnetwork, const char *key) {
     return 0;
 }
 
+static int __forget_network(json_object *jnetwork) {
+    const char *ssid = nakd_net_ssid(jnetwork);
+    if (__get_stored_network(ssid) != NULL)
+        __remove_stored_network(ssid);
+
+    if (__save_stored_networks()) {
+        nakd_log(L_CRIT, "Couldn't remove \"%s\" network.", ssid);
+        return 1;
+    }
+    return 0;   
+}
+
 static int __in_range(const char *ssid) {
     if (_wireless_networks == NULL)
         return -1;
@@ -845,6 +857,34 @@ unlock:
     return jresponse;
 }
 
+json_object *cmd_wlan_forget(json_object *jcmd, void *arg) {
+    json_object *jparams;
+    json_object *jresponse;
+    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
+        json_object_get_type(jparams) != json_type_object) {
+        goto params;
+    }
+
+    if (__forget_network(jparams)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                     "Internal error - couldn't save network list.");
+        goto unlock;
+    }
+
+    json_object *jresult = json_object_new_string("OK");
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+
+params:
+    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
+           "Invalid parameters - params should be an object with"
+                                           " \"ssid\", member.");
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return jresponse;
+}
+
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "uci", "ubus", "netintf", "workqueue", NULL },
@@ -906,3 +946,14 @@ static struct nakd_command configure_ap = {
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(configure_ap);
+
+static struct nakd_command wlan_forget = {
+    .name = "wlan_forget",
+    .desc = "Makes nakd forget a wireless network.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_forget\", \"params\":"
+                                          " {\"ssid\": \"...\"}, \"id\": 42}",
+    .handler = cmd_wlan_forget,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_forget);
