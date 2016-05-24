@@ -532,19 +532,26 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
     /* this function is called from nakd_uci_, no locking required for uci_set */
     nakd_uci_set_nolock(&ssid_ptr);
 
-    const char *key = nakd_net_key(jnetwork);
-    if (key != NULL) {
-        struct uci_ptr key_ptr = {
-            .package = pkg_name,
-            .section = section_name,
-            .option = "key",
-            .value = key
-        };
-        nakd_uci_set_nolock(&key_ptr);
+    const char *encryption = nakd_net_encryption(jnetwork);
+    nakd_assert(encryption != NULL); /* see: _validate_*_config */
+
+    if (strcmp("none", encryption)) {
+        const char *key = nakd_net_key(jnetwork);
+        if (key != NULL) {
+            struct uci_ptr key_ptr = {
+                .package = pkg_name,
+                .section = section_name,
+                .option = "key",
+                .value = key
+            };
+            nakd_uci_set_nolock(&key_ptr);
+        } else {
+            nakd_log(L_CRIT, "Encryption set, but no passphrase. "
+                                 "Configuration left unchanged.");
+            return 1;
+        }
     }
 
-    const char *encryption = nakd_net_encryption(jnetwork);
-    nakd_assert(encryption != NULL);
     struct uci_ptr enc_ptr = {
         .package = pkg_name,
         .section = section_name,
@@ -640,11 +647,13 @@ static int _wlan_connect(json_object *jnetwork) {
 static int _validate_ap_config(json_object *jnetwork) {
     return nakd_net_key(jnetwork) == NULL ||
            nakd_net_ssid(jnetwork) == NULL ||
-           nakd_net_disabled(jnetwork) == -1;
+           nakd_net_disabled(jnetwork) == -1 ||
+           nakd_net_encryption(jnetwork) == NULL;
 }
 
 static int _validate_wlan_config(json_object *jnetwork) {
-    return nakd_net_ssid(jnetwork) == NULL;
+    return nakd_net_ssid(jnetwork) == NULL ||
+           nakd_net_encryption(jnetwork) == NULL;
 }
 
 static int _configure_ap(json_object *jnetwork) {
@@ -846,13 +855,13 @@ json_object *cmd_configure_ap(json_object *jcmd, void *arg) {
         goto params;
     }
 
-    if (_validate_ap_config(jparams))
-        goto params;
-
     /* force encryption to psk2 */
     json_object_object_del(jparams, "encryption");
     json_object *jencryption = json_object_new_string("psk2");
     json_object_object_add(jparams, "encryption", jencryption);
+
+    if (_validate_ap_config(jparams))
+        goto params;
 
     if (_configure_ap(jparams)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
