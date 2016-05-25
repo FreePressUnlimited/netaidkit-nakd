@@ -127,6 +127,7 @@ unlock:
 static struct work_desc _update_desc = {
     .impl = _connectivity_update,
     .name = "connectivity update",
+    .timeout = 15
 };
 
 static void _connectivity_update_sighandler(siginfo_t *timer_info,
@@ -135,6 +136,9 @@ static void _connectivity_update_sighandler(siginfo_t *timer_info,
     if (!nakd_work_pending(nakd_wq, _update_desc.name)) {
         struct work *work = nakd_alloc_work(&_update_desc);
         nakd_workqueue_add(nakd_wq, work);
+    } else {
+        nakd_log(L_DEBUG, "There's already connectivity update job in the"
+                                                 " workqueue. Skipping.");
     }
 }
 
