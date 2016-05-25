@@ -87,7 +87,13 @@ static int __unload_uci_package(struct uci_package *pkg) {
     /*
      * nakd_log(L_DEBUG, "Unloading UCI package \"%s\"", pkg->e.name);
      */
-    return uci_unload(_uci_ctx, pkg);
+    if (uci_unload(_uci_ctx, pkg)) {
+        char *uci_err;
+        uci_get_errorstr(_uci_ctx, &uci_err, "");
+        nakd_log(L_CRIT, "Couldn't unload UCI package: %s", uci_err);
+        return 1;
+    }
+    return 0;
 }
 
 int nakd_unload_uci_package(struct uci_package *pkg) {
