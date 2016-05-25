@@ -84,7 +84,7 @@ static void _connectivity_update(void *priv) {
         } else {
             /* let things settle before probing network connectivity */
             int uptime = nakd_wlan_connection_uptime();
-            if (uptime && uptime < 5)
+            if (uptime && uptime < 15)
                 goto unlock;
 
             char *gw_ip = _gateway_ip(); 
