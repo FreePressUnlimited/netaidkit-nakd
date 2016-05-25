@@ -127,7 +127,6 @@ unlock:
 static struct work_desc _update_desc = {
     .impl = _connectivity_update,
     .name = "connectivity update",
-    .timeout = 15
 };
 
 static void _connectivity_update_sighandler(siginfo_t *timer_info,
