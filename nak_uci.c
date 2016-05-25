@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <pthread.h>
 #include "nak_uci.h"
 #include "log.h"
@@ -26,12 +27,18 @@ static struct uci_package *__load_uci_package(const char *name) {
      * nakd_log(L_INFO, "Loading UCI package \"%s\"", name);
      */
     nakd_assert(name != NULL);
-    
-    if (uci_load(_uci_ctx, name, &pkg)) {
-        char *uci_err;
-        uci_get_errorstr(_uci_ctx, &uci_err, "");
-        nakd_log(L_CRIT, "Couldn't load UCI package \"%s\": %s", name, uci_err);
-        return NULL;
+   
+    for (int try = 0; try < 5; try++) {
+        if (uci_load(_uci_ctx, name, &pkg)) {
+            char *uci_err;
+            uci_get_errorstr(_uci_ctx, &uci_err, "");
+            nakd_log(L_CRIT, "Couldn't load UCI package \"%s\": %s. "
+                      "Could be a race condition, retrying...", name,
+                                                            uci_err);
+            sleep(1);
+        } else {
+            break;
+        }
     }
     return pkg;
 }
