@@ -92,7 +92,7 @@ int nakd_config_key(const char *key, char **ret) {
     *ret = strdup(opt->v.string);
 
 cleanup:
-    if (!nakd_unload_uci_package(nakd_pkg))
+    if (nakd_unload_uci_package(nakd_pkg))
         nakd_log(L_CRIT, "Couldn't unload nakd UCI package.");
 unlock:
     pthread_mutex_unlock(&_config_mutex);
