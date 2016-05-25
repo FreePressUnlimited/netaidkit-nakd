@@ -2,13 +2,14 @@
 
 START=99
 STOP=99
+USE_PROCD=1
 
-start() {
+start_service() {
     echo "starting netaidkit."
-}
-
-stop() {
-    echo "stopping netaidkit."
+    procd_open_instance
+    procd_set_param command /usr/bin/nakd
+    procd_set_param respawn ${respawn_threshold:-3600} ${respawn_timeout:-5} ${respawn_retry:-999}
+    procd_close_instance
 }
 
 boot() {
@@ -16,10 +17,9 @@ boot() {
     echo "0" > /sys/class/leds/gl-connect\:green\:lan/brightness
     echo "0" > /sys/class/leds/gl-connect\:red\:wlan/brightness
 
-    # Start nakd
-    (/usr/bin/nakd &>/dev/null) &
-
     # Set domain socket permissions
     chgrp www-data /run/nakd
     chmod g+w /run/nakd
+
+    start
 }
