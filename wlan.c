@@ -416,7 +416,8 @@ static void _wlan_scan_iwinfo_work(void *priv) {
         json_object *jssid = json_object_new_string(e->ssid);
         json_object_object_add(jnetwork, "ssid", jssid); 
 
-        json_object *jbssid = json_object_new_string(e->mac);
+        json_object *jbssid = json_object_new_string(
+                               format_bssid(e->mac));
         json_object_object_add(jnetwork, "bssid", jbssid);
 
         json_object *jchannel;
