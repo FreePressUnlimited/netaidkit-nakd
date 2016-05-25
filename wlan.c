@@ -663,10 +663,16 @@ static int _wlan_connect(json_object *jnetwork) {
 }
 
 static int _validate_ap_config(json_object *jnetwork) {
-    return nakd_net_key(jnetwork) == NULL ||
-           nakd_net_ssid(jnetwork) == NULL ||
-           nakd_net_disabled(jnetwork) == -1 ||
-           nakd_net_encryption(jnetwork) == NULL;
+    const char *key = nakd_net_key(jnetwork);
+    const char *ssid = nakd_net_ssid(jnetwork);
+
+    if (key == NULL || ssid == NULL ||
+        nakd_net_disabled(jnetwork) == -1 ||
+        nakd_net_encryption(jnetwork) == NULL)
+        return 1;
+
+    return strlen(key) > 8 && strlen(key) <= 64 &&
+           strlen(ssid) <= 32;
 }
 
 static int _validate_wlan_config(json_object *jnetwork) {
