@@ -920,6 +920,7 @@ json_object *cmd_wlan_forget(json_object *jcmd, void *arg) {
 
     json_object *jresult = json_object_new_string("OK");
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    goto unlock;
 
 params:
     jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
