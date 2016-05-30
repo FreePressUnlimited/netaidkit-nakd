@@ -14,6 +14,7 @@
 #include "module.h"
 #include "workqueue.h"
 #include "command.h"
+#include "misc.h"
 
 #define NETINTF_UBUS_SERVICE "network.device"
 #define NETINTF_UBUS_METHOD "status"
@@ -409,6 +410,15 @@ static int _netintf_cleanup(void) {
     nakd_timer_remove(_netintf_update_timer);
     pthread_mutex_destroy(&_netintf_mutex);
     return 0;
+}
+
+enum nakd_interface nakd_iface_from_string(const char *iface) {
+    const char **istr = nakd_interface_type;
+    for (; istr < ARRAY_END(nakd_interface_type); istr++) {
+        if (!strcasecmp(iface, *istr))
+            return (enum nakd_interface)(istr - nakd_interface_type);
+    }
+    return INTF_UNSPECIFIED;
 }
 
 json_object *cmd_interface_state(json_object *jcmd, void *arg) {

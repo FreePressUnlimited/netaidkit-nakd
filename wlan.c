@@ -937,6 +937,90 @@ unlock:
     return jresponse;
 }
 
+static int _get_current_wlan_config(struct uci_option *option, void *priv) {
+    json_object **jnetwork = priv;
+    /* in case there are two sections with WLAN tag */
+    if (*jnetwork != NULL)
+        return 1;
+
+    struct uci_section *ifs = option->section;
+    struct uci_context *ctx = ifs->package->ctx;
+    struct uci_package *pkg = ifs->package;
+
+    json_object *jssid = NULL;
+    json_object *jenc = NULL;
+
+    struct uci_ptr ssid_ptr = {
+        .package = pkg->e.name,
+        .section = ifs->e.name,
+        .option = "ssid" 
+    };
+    if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 0) == UCI_OK) {
+        jssid = json_object_new_string(ssid_ptr.value);
+    } else {
+        nakd_log(L_DEBUG, "Couldn't get \"ssid\"");
+        goto err;
+    }
+
+    struct uci_ptr enc_ptr = {
+        .package = pkg->e.name,
+        .section = ifs->e.name,
+        .option = "encryption" 
+    };
+    if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 0) == UCI_OK) {
+        jenc = json_object_new_string(enc_ptr.value);
+    } else {
+        nakd_log(L_DEBUG, "Couldn't get \"encryption\"");
+        goto err;
+    }
+
+    *jnetwork = json_object_new_object();
+    json_object_object_add(*jnetwork, "ssid", jssid);
+    json_object_object_add(*jnetwork, "encryption", jenc);
+    return 0;
+
+err:
+    json_object_put(jssid);
+    json_object_put(jenc);
+    return 1;
+}
+
+json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
+    json_object *jresponse;
+    json_object *jparams;
+
+    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
+        json_object_get_type(jparams) != json_type_string) {
+        goto params;
+    }
+
+    const char *ifacestr = json_object_get_string(jparams);
+    enum nakd_interface iface = nakd_iface_from_string(ifacestr);
+    if (iface != NAKD_WLAN && iface != NAKD_WAN)
+        goto params;
+
+    json_object *jnetwork;
+    if (nakd_update_iface_config(iface, _get_current_wlan_config,
+                                               &jnetwork) != 1) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+           "Internal error - couldn't get interface configuration.");
+        goto unlock;
+    }
+
+    jresponse = nakd_jsonrpc_response_success(jcmd, jnetwork);
+    goto unlock;
+
+params:
+    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+           "Invalid request - params should be a string; \"WLAN\""
+                                "and \"AP\" interfaces allowed.");
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return jresponse;
+}
+
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "uci", "ubus", "netintf", "workqueue", NULL },
@@ -1009,3 +1093,14 @@ static struct nakd_command wlan_forget = {
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_forget);
+
+static struct nakd_command wlan_current = {
+    .name = "wlan_curent",
+    .desc = "Shows current wireless interface configuration.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_current\", \"params\":"
+                                                      " \"WLAN\", \"id\": 42}",
+    .handler = cmd_wlan_current,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_current);

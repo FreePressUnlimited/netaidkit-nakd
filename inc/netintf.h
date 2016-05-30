@@ -18,6 +18,7 @@ int nakd_interface_disabled(enum nakd_interface id);
 char *nakd_interface_name(enum nakd_interface id);
 int nakd_carrier_present(enum nakd_interface id);
 int nakd_iface_state_available(void);
+enum nakd_interface nakd_iface_from_string(const char *iface);
 
 void nakd_netintf_disable_updates(int seconds);
 void nakd_netintf_enable_updates(void);
