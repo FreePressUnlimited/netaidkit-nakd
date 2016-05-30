@@ -19,6 +19,7 @@ static const int _sigmask[] = {
     SIGTERM,
     SIGALRM,
     SIGCONT,
+    SIGPIPE,
     0
 };
 
