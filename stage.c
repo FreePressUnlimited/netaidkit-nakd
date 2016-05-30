@@ -457,11 +457,14 @@ static json_object *__desc_stage(struct stage *stage) {
     json_object *jdesc = json_object_new_string(stage->desc);
     json_object *jconnectivity = json_object_new_string(
         nakd_connectivity_string[stage->connectivity_level]);
-    json_object *jerr = json_object_new_string(stage->err);
+    json_object *jerr = stage->err == NULL ? NULL :
+                json_object_new_string(stage->err);
+
     json_object_object_add(jresult, "name", jname);
     json_object_object_add(jresult, "desc", jdesc);
     json_object_object_add(jresult, "connectivity", jconnectivity);
-    json_object_object_add(jresult, "errmsg", jerr);
+    if (jerr != NULL)
+        json_object_object_add(jresult, "errmsg", jerr);
     return jresult;
 }
 
