@@ -998,7 +998,7 @@ json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
 
     const char *ifacestr = json_object_get_string(jparams);
     enum nakd_interface iface = nakd_iface_from_string(ifacestr);
-    if (iface != NAKD_WLAN && iface != NAKD_WAN)
+    if (iface != NAKD_WLAN && iface != NAKD_AP)
         goto params;
 
     json_object *jnetwork = NULL;
