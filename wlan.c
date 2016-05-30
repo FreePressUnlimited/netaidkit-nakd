@@ -956,7 +956,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         .option = "ssid" 
     };
     if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 0) == UCI_OK) {
-        jssid = json_object_new_string(ssid_ptr.value);
+        jssid = json_object_new_string(ssid_ptr.o->v.string);
     } else {
         nakd_log(L_DEBUG, "Couldn't get \"ssid\"");
         goto err;
@@ -968,7 +968,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         .option = "encryption" 
     };
     if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 0) == UCI_OK) {
-        jenc = json_object_new_string(enc_ptr.value);
+        jenc = json_object_new_string(enc_ptr.o->v.string);
     } else {
         nakd_log(L_DEBUG, "Couldn't get \"encryption\"");
         goto err;
