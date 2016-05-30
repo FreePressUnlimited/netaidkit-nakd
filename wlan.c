@@ -949,40 +949,46 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
 
     json_object *jssid = NULL;
     json_object *jenc = NULL;
+    json_object *jdisabled = NULL;
 
     struct uci_ptr ssid_ptr = {
         .package = pkg->e.name,
         .section = ifs->e.name,
         .option = "ssid" 
     };
-    if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 0) == UCI_OK) {
+    if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 0) == UCI_OK)
         jssid = json_object_new_string(ssid_ptr.o->v.string);
-    } else {
+    else
         nakd_log(L_DEBUG, "Couldn't get \"ssid\"");
-        goto err;
-    }
 
     struct uci_ptr enc_ptr = {
         .package = pkg->e.name,
         .section = ifs->e.name,
         .option = "encryption" 
     };
-    if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 0) == UCI_OK) {
+    if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 0) == UCI_OK)
         jenc = json_object_new_string(enc_ptr.o->v.string);
-    } else {
+    else
         nakd_log(L_DEBUG, "Couldn't get \"encryption\"");
-        goto err;
-    }
+
+    struct uci_ptr disabled_ptr = {
+        .package = pkg->e.name,
+        .section = ifs->e.name,
+        .option = "disabled" 
+    };
+    if (uci_lookup_ptr(ctx, &disabled_ptr, NULL, 0) == UCI_OK)
+        jdisabled = json_object_new_string(disabled_ptr.o->v.string);
+    else
+        nakd_log(L_DEBUG, "Couldn't get \"disabled\"");
 
     *jnetwork = json_object_new_object();
-    json_object_object_add(*jnetwork, "ssid", jssid);
-    json_object_object_add(*jnetwork, "encryption", jenc);
+    if (jssid != NULL)
+        json_object_object_add(*jnetwork, "ssid", jssid);
+    if (jenc != NULL)
+        json_object_object_add(*jnetwork, "encryption", jenc);
+    if (jdisabled != NULL)
+        json_object_object_add(*jnetwork, "disabled", jdisabled);
     return 0;
-
-err:
-    json_object_put(jssid);
-    json_object_put(jenc);
-    return 1;
 }
 
 json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
