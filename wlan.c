@@ -1001,7 +1001,7 @@ json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
     if (iface != NAKD_WLAN && iface != NAKD_WAN)
         goto params;
 
-    json_object *jnetwork;
+    json_object *jnetwork = NULL;
     if (nakd_update_iface_config(iface, _get_current_wlan_config,
                                                &jnetwork) != 1) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
@@ -1095,7 +1095,7 @@ static struct nakd_command wlan_forget = {
 NAKD_DECLARE_COMMAND(wlan_forget);
 
 static struct nakd_command wlan_current = {
-    .name = "wlan_curent",
+    .name = "wlan_current",
     .desc = "Shows current wireless interface configuration.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_current\", \"params\":"
                                                       " \"WLAN\", \"id\": 42}",
