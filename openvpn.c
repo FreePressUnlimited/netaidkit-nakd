@@ -20,13 +20,24 @@
 
 #define SOCK_PATH "/run/openvpn/openvpn.sock"
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
+#define AUTH_PATH "/nak/ovpn/auth.txt"
 
-static char * const argv[] = {
+static char * const _argv[] = {
     "/usr/sbin/openvpn",
     "--log-append", "/var/log/openvpn.log",
     "--daemon",
     "--management", SOCK_PATH, "unix",
     "--config", CONFIG_PATH,
+    NULL
+};
+
+static char * const _argv_auth[] = {
+    "/usr/sbin/openvpn",
+    "--log-append", "/var/log/openvpn.log",
+    "--daemon",
+    "--management", SOCK_PATH, "unix",
+    "--config", CONFIG_PATH,
+    "--auth-user-pass", AUTH_PATH,
     NULL
 };
 
@@ -57,6 +68,10 @@ static int _access_config_file(void) {
 
 static int _access_mgmt_socket(void) {
     return access(SOCK_PATH, R_OK);
+}
+
+static int _access_auth_file(void) {
+    return access(AUTH_PATH, R_OK);
 }
 
 static char *_getline(void) {
@@ -230,7 +245,9 @@ response:
     return lines;
 }
 
-int nakd_start_openvpn(void) {
+int nakd_start_openvpn() {
+    char * const *argv = _access_auth_file() ? _argv : _argv_auth;
+
     nakd_log_execution_point();
 
     int pid = fork();
