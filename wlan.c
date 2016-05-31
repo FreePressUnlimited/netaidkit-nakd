@@ -114,6 +114,13 @@ const char *nakd_net_ssid(json_object *jnetwork) {
     return nakd_json_get_string(jnetwork, "ssid");
 }
 
+int nakd_net_hidden(json_object *jnetwork) {
+    int hidden = nakd_json_get_int(jnetwork, "hidden");
+    if (errno)
+        return 0;
+    return hidden;
+}
+
 static json_object *__get_stored_network(const char *ssid) {
     nakd_assert(_stored_networks != NULL);
 
@@ -519,14 +526,10 @@ const char *nakd_net_encryption(json_object *jnetwork) {
 }
 
 int nakd_net_disabled(json_object *jnetwork) {
-    json_object *jdisabled = NULL;
-    json_object_object_get_ex(jnetwork, "disabled", &jdisabled);
-    if (jdisabled != NULL) {
-        if (json_object_get_type(jdisabled) != json_type_int)
-            return -1;
-        return json_object_get_int(jdisabled);
-    }
-    return 0;   
+    int disabled = nakd_json_get_int(jnetwork, "disabled");
+    if (errno)
+        return 0;
+    return disabled;
 }
 
 static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
@@ -587,6 +590,17 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
             .value = disabled ? "1" : "0"
         };
         nakd_uci_set_nolock(&disabled_ptr);
+    }
+
+    int hidden = nakd_net_hidden(jnetwork);
+    if (hidden != -1) {
+        struct uci_ptr hidden_ptr = {
+            .package = pkg_name,
+            .section = section_name,
+            .option = "hidden",
+            .value = hidden ? "1" : "0"
+        };
+        nakd_uci_set_nolock(&hidden_ptr);
     }
     return 0;
 }
@@ -668,6 +682,7 @@ static int _validate_ap_config(json_object *jnetwork) {
 
     if (key == NULL || ssid == NULL ||
         nakd_net_disabled(jnetwork) == -1 ||
+        nakd_net_hidden(jnetwork) == -1 ||
         nakd_net_encryption(jnetwork) == NULL)
         return 1;
 
@@ -950,6 +965,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     json_object *jssid = NULL;
     json_object *jenc = NULL;
     json_object *jdisabled = NULL;
+    json_object *jhidden = NULL;
 
     struct uci_ptr ssid_ptr = {
         .package = pkg->e.name,
@@ -981,6 +997,16 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     else
         nakd_log(L_DEBUG, "Couldn't get \"disabled\"");
 
+    struct uci_ptr hidden_ptr = {
+        .package = pkg->e.name,
+        .section = ifs->e.name,
+        .option = "hidden" 
+    };
+    if (uci_lookup_ptr(ctx, &hidden_ptr, NULL, 0) == UCI_OK)
+        jhidden = json_object_new_string(hidden_ptr.o->v.string);
+    else
+        nakd_log(L_DEBUG, "Couldn't get \"hidden\"");
+
     *jnetwork = json_object_new_object();
     if (jssid != NULL)
         json_object_object_add(*jnetwork, "ssid", jssid);
@@ -988,6 +1014,8 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         json_object_object_add(*jnetwork, "encryption", jenc);
     if (jdisabled != NULL)
         json_object_object_add(*jnetwork, "disabled", jdisabled);
+    if (jhidden != NULL)
+        json_object_object_add(*jnetwork, "hidden", jhidden);
     return 0;
 }
 
@@ -1082,7 +1110,7 @@ static struct nakd_command configure_ap = {
     .desc = "Configures the access point.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"configure_ap\", \"params\":"
          " {\"ssid\": \"AP SSID\", \"key\": \"...\", \"encryption\": \"psk2\","
-                                              " \"disabled\": 0}, \"id\": 42}",
+                               " \"disabled\": 0, \"hidden\": 0}, \"id\": 42}",
     .handler = cmd_configure_ap,
     .access = ACCESS_USER,
     .module = &module_wlan

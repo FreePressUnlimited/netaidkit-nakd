@@ -15,6 +15,7 @@ const char *nakd_net_key(json_object *jnetwork);
 const char *nakd_net_ssid(json_object *jnetwork);
 const char *nakd_net_encryption(json_object *jnetwork);
 int nakd_net_disabled(json_object *jnetwork);
+int nakd_net_hidden(json_object *jnetwork);
 
 const char *nakd_wlan_interface_name(void);
 const char *nakd_ap_interface_name(void);

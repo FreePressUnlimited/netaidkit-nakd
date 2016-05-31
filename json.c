@@ -1,5 +1,6 @@
 #include <json-c/json.h>
 #include <string.h>
+#include <errno.h>
 #include "json.h"
 #include "log.h"
 
@@ -24,4 +25,17 @@ const char *nakd_json_get_string(json_object *jobject, const char *key) {
         return NULL;
 
     return json_object_get_string(jstr);
+}
+
+int nakd_json_get_int(json_object *jobject, const char *key) {
+    json_object *jint = NULL;
+    json_object_object_get_ex(jobject, key, &jint);
+    if (jint != NULL) {
+        if (json_object_get_type(jint) != json_type_int) {
+            errno = EINVAL;
+            return -1;
+        }
+        return json_object_get_int(jint);
+    }
+    return 0;   
 }
