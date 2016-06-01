@@ -689,13 +689,31 @@ static int _validate_wlan_config(json_object *jnetwork) {
            nakd_net_encryption(jnetwork) == NULL;
 }
 
-static int _configure_ap(json_object *jnetwork) {
+static void _configure_ap_work(void *priv) {
+    json_object *jnetwork = priv;
+
+    pthread_mutex_lock(&_wlan_mutex);
     /* Continue if exactly one UCI section was found and updated. */
     if (nakd_update_iface_config(NAKD_AP, _update_wlan_config_ssid,
                                                   jnetwork) != 1) {
-        return 1;
+        nakd_log(L_CRIT, "Couldn't configure Access Point.");
+        goto unlock;
     }
-    return _reload_wireless_config();
+    _reload_wireless_config();
+
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+}
+
+static struct work_desc _configure_ap_desc = {
+    .impl = _configure_ap_work,
+    .name = "ap configure",
+};
+
+static int _configure_ap(json_object *jnetwork) {
+    struct work *configure_wq_entry = nakd_alloc_work(&_configure_ap_desc);
+    configure_wq_entry->desc.priv = jnetwork;
+    nakd_workqueue_add(nakd_wq, configure_wq_entry);
 }
 
 int nakd_wlan_connect(json_object *jnetwork) {
