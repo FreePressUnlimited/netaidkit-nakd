@@ -589,15 +589,14 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
     nakd_uci_set_nolock(&enc_ptr);
 
     int disabled = nakd_net_disabled(jnetwork);
-    if (disabled != -1) {
-        struct uci_ptr disabled_ptr = {
-            .package = pkg_name,
-            .section = section_name,
-            .option = "disabled",
-            .value = disabled ? "1" : "0"
-        };
-        nakd_uci_set_nolock(&disabled_ptr);
-    }
+    disabled = disabled == -1 ? 0 : disabled;
+    struct uci_ptr disabled_ptr = {
+        .package = pkg_name,
+        .section = section_name,
+        .option = "disabled",
+        .value = disabled ? "1" : "0"
+    };
+    nakd_uci_set_nolock(&disabled_ptr);
 
     int hidden = nakd_net_hidden(jnetwork);
     if (hidden != -1) {
