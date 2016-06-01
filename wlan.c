@@ -988,15 +988,18 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     json_object *jhidden =
         nakd_get_option_nolock(package, section, "hidden");
 
+    if (jdisabled == NULL)
+        jdisabled = json_object_new_string("0");
+    if (jhidden == NULL)
+        jhidden = json_object_new_string("0");
+
     *jnetwork = json_object_new_object();
     if (jssid != NULL)
         json_object_object_add(*jnetwork, "ssid", jssid);
     if (jenc != NULL)
         json_object_object_add(*jnetwork, "encryption", jenc);
-    if (jdisabled != NULL)
-        json_object_object_add(*jnetwork, "disabled", jdisabled);
-    if (jhidden != NULL)
-        json_object_object_add(*jnetwork, "hidden", jhidden);
+    json_object_object_add(*jnetwork, "disabled", jdisabled);
+    json_object_object_add(*jnetwork, "hidden", jhidden);
     return 0;
 }
 
