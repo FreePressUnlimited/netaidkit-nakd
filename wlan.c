@@ -680,8 +680,8 @@ static int _validate_ap_config(json_object *jnetwork) {
         nakd_net_encryption(jnetwork) == NULL)
         return 1;
 
-    return strlen(key) > 8 && strlen(key) <= 64 &&
-           strlen(ssid) <= 32;
+    return strlen(key) < 8 || strlen(key) > 64 ||
+           strlen(ssid) > 32;
 }
 
 static int _validate_wlan_config(json_object *jnetwork) {
