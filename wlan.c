@@ -706,6 +706,7 @@ static void _configure_ap_work(void *priv) {
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+    json_object_put(jnetwork);
 }
 
 static struct work_desc _configure_ap_desc = {
@@ -715,6 +716,7 @@ static struct work_desc _configure_ap_desc = {
 
 static int _configure_ap(json_object *jnetwork) {
     struct work *configure_wq_entry = nakd_alloc_work(&_configure_ap_desc);
+    json_object_get(jnetwork);
     configure_wq_entry->desc.priv = jnetwork;
     nakd_workqueue_add(nakd_wq, configure_wq_entry);
 }
