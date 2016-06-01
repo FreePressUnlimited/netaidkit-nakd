@@ -536,6 +536,9 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
     const char *pkg_name = pkg->e.name;
     const char *section_name = ifs->e.name;
 
+    nakd_log(L_DEBUG, "Configuring section %s, network: %s", section_name,
+                                    json_object_to_json_string(jnetwork));
+
     const char *ssid = nakd_net_ssid(jnetwork);
     nakd_assert(ssid != NULL);
     struct uci_ptr ssid_ptr = {
