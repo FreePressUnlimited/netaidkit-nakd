@@ -115,10 +115,7 @@ const char *nakd_net_ssid(json_object *jnetwork) {
 }
 
 int nakd_net_hidden(json_object *jnetwork) {
-    int hidden = nakd_json_get_int(jnetwork, "hidden");
-    if (errno)
-        return 0;
-    return hidden;
+    return nakd_json_get_int(jnetwork, "hidden");
 }
 
 static json_object *__get_stored_network(const char *ssid) {
@@ -526,10 +523,7 @@ const char *nakd_net_encryption(json_object *jnetwork) {
 }
 
 int nakd_net_disabled(json_object *jnetwork) {
-    int disabled = nakd_json_get_int(jnetwork, "disabled");
-    if (errno)
-        return 0;
-    return disabled;
+    return nakd_json_get_int(jnetwork, "disabled");
 }
 
 static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {

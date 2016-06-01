@@ -31,11 +31,11 @@ int nakd_json_get_int(json_object *jobject, const char *key) {
     json_object *jint = NULL;
     json_object_object_get_ex(jobject, key, &jint);
     if (jint != NULL) {
-        if (json_object_get_type(jint) != json_type_int) {
-            errno = EINVAL;
-            return -1;
-        }
+        if (json_object_get_type(jint) != json_type_int)
+            goto err;
         return json_object_get_int(jint);
     }
-    return 0;   
+err:
+    errno = EINVAL;
+    return -1;   
 }
