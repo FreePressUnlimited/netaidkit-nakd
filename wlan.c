@@ -989,7 +989,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         .section = ifs->e.name,
         .option = "ssid" 
     };
-    if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 0) == UCI_OK)
+    if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 1) == UCI_OK)
         jssid = json_object_new_string(ssid_ptr.o->v.string);
     else
         nakd_log(L_DEBUG, "Couldn't get \"ssid\"");
@@ -999,7 +999,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         .section = ifs->e.name,
         .option = "encryption" 
     };
-    if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 0) == UCI_OK)
+    if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 1) == UCI_OK)
         jenc = json_object_new_string(enc_ptr.o->v.string);
     else
         nakd_log(L_DEBUG, "Couldn't get \"encryption\"");
@@ -1009,7 +1009,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         .section = ifs->e.name,
         .option = "disabled" 
     };
-    if (uci_lookup_ptr(ctx, &disabled_ptr, NULL, 0) == UCI_OK)
+    if (uci_lookup_ptr(ctx, &disabled_ptr, NULL, 1) == UCI_OK)
         jdisabled = json_object_new_string(disabled_ptr.o->v.string);
     else
         nakd_log(L_DEBUG, "Couldn't get \"disabled\"");
@@ -1019,7 +1019,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         .section = ifs->e.name,
         .option = "hidden" 
     };
-    if (uci_lookup_ptr(ctx, &hidden_ptr, NULL, 0) == UCI_OK)
+    if (uci_lookup_ptr(ctx, &hidden_ptr, NULL, 1) == UCI_OK)
         jhidden = json_object_new_string(hidden_ptr.o->v.string);
     else
         nakd_log(L_DEBUG, "Couldn't get \"hidden\"");
