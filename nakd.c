@@ -11,6 +11,7 @@
 #include "log.h"
 #include "nak_signal.h"
 #include "module.h"
+#include "shell.h"
 
 #define PID_PATH "/run/nakd/nakd.pid"
 
@@ -58,6 +59,7 @@ static void _get_args(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]) {
     int pid_fd;
+    nakd_assert(!chdir(NAKD_SCRIPT_PATH));
 
     _get_args(argc, argv);    
 
