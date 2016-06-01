@@ -272,15 +272,17 @@ static json_object *__choose_network(void) {
 
     for (int i = 0; i < json_object_array_length(_wireless_networks); i++) {
         json_object *jnetwork = json_object_array_get_idx(_wireless_networks, i);
-        if (nakd_net_auto(jnetwork) != 1)
-            continue;
 
         const char *ssid = nakd_net_ssid(jnetwork);
         nakd_assert(ssid != NULL);
 
         json_object *jstored = __get_stored_network(ssid);
-        if (jstored != NULL)
+        if (jstored != NULL) {
+            if (nakd_net_auto(jstored) != 1)
+                continue;
+
             return jstored;
+        }
     }
     return NULL;
 }
