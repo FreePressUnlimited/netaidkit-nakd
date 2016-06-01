@@ -1,2 +1,2 @@
 #!/bin/sh
-cp -raf ../defaults/* /
+cp -raf /usr/share/nakd/defaults/* /
