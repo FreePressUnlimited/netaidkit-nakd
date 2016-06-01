@@ -39,3 +39,15 @@ err:
     errno = EINVAL;
     return -1;   
 }
+
+int nakd_json_get_bool(json_object *jobject, const char *key) {
+    json_object *jbool = NULL;
+    json_object_object_get_ex(jobject, key, &jbool);
+    if (jbool != NULL) {
+        if (json_object_get_type(jbool) != json_type_boolean)
+            goto err;
+        return json_object_get_boolean(jbool);
+    }
+err:
+    return -1;
+}

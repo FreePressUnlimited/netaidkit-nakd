@@ -118,6 +118,10 @@ int nakd_net_hidden(json_object *jnetwork) {
     return nakd_json_get_int(jnetwork, "hidden");
 }
 
+int nakd_net_auto(json_object *jnetwork) {
+    return nakd_json_get_bool(jnetwork, "auto");
+}
+
 static json_object *__get_stored_network(const char *ssid) {
     nakd_assert(_stored_networks != NULL);
 
@@ -183,7 +187,8 @@ static json_object *__find_network(const char *ssid) {
     return NULL;
 }
 
-static json_object *_create_network_entry(const char *ssid, const char *key) {
+static json_object *_create_network_entry(const char *ssid, const char *key,
+                                                          int autoconnect) {
     json_object *jnetwork = __find_network(ssid);
     if (jnetwork == NULL)
         return NULL;
@@ -194,16 +199,19 @@ static json_object *_create_network_entry(const char *ssid, const char *key) {
     json_object *jssid = json_object_new_string(ssid);
     json_object *jkey = key == NULL ? NULL : json_object_new_string(key);
     json_object *jenc = json_object_new_string(enc);
+    json_object *jauto = json_object_new_boolean(autoconnect);
 
     json_object *jentry = json_object_new_object(); 
     json_object_object_add(jentry, "ssid", jssid);
     if (jkey != NULL)
         json_object_object_add(jentry, "key", jkey);
     json_object_object_add(jentry, "encryption", jenc);
+    json_object_object_add(jentry, "auto", jauto);
     return jentry;
 }
 
-static int __store_network(const char *ssid, const char *key) {
+static int __store_network(const char *ssid, const char *key,
+                                           int autoconnect) {
     if (__get_stored_network(ssid) != NULL)
         __remove_stored_network(ssid);
 
@@ -211,7 +219,7 @@ static int __store_network(const char *ssid, const char *key) {
      * Use just ssid and key from user-supplied network entry, copy
      * encryption type from _wireless_networks.
      */
-    json_object *jentry = _create_network_entry(ssid, key);
+    json_object *jentry = _create_network_entry(ssid, key, autoconnect);
     if (jentry == NULL)
         return 1;
     json_object_array_add(_stored_networks, jentry);
@@ -264,6 +272,8 @@ static json_object *__choose_network(void) {
 
     for (int i = 0; i < json_object_array_length(_wireless_networks); i++) {
         json_object *jnetwork = json_object_array_get_idx(_wireless_networks, i);
+        if (nakd_net_auto(jnetwork) != 1)
+            continue;
 
         const char *ssid = nakd_net_ssid(jnetwork);
         nakd_assert(ssid != NULL);
@@ -880,12 +890,15 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
 
     if (jstore != NULL) {
        if (json_object_get_boolean(jstore)) {
-           if (__store_network(ssid, key)) {
+            int autoconnect = nakd_json_get_bool(jparams, "auto");
+            autoconnect = autoconnect == -1 ? 0 : autoconnect;
+
+            if (__store_network(ssid, key, autoconnect)) {
                 jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
                       "Internal error - couldn't store network credentials. "
                                                                "Connected.");
                 goto unlock;
-           }
+            }
        }
     }
 
