@@ -205,6 +205,23 @@ int nakd_uci_set(struct uci_ptr *ptr) {
     return status;
 }
 
+json_object *nakd_get_option_nolock(const char *package, const char *section,
+                                                        const char *option) {
+    struct uci_ptr option_ptr = {
+        .package = package,
+        .section = section,
+        .option = option
+    };
+
+    if (uci_lookup_ptr(_uci_ctx, &option_ptr, NULL, 1) == UCI_OK) {
+        if (option_ptr.o != NULL && option_ptr.o->v.string != NULL)
+            return json_object_new_string(option_ptr.o->v.string);
+    }
+    nakd_log(L_DEBUG, "Couldn't get \"%s\" option (%s/%s/%s)", option,
+                                            package, section, option);
+    return NULL;
+}
+
 static struct nakd_module module_uci = {
     .name = "uci",
     .deps = NULL,

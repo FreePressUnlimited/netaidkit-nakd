@@ -976,53 +976,17 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
         return 1;
 
     struct uci_section *ifs = option->section;
-    struct uci_context *ctx = ifs->package->ctx;
-    struct uci_package *pkg = ifs->package;
+    const char *package = ifs->package->e.name;
+    const char *section = ifs->e.name;
 
-    json_object *jssid = NULL;
-    json_object *jenc = NULL;
-    json_object *jdisabled = NULL;
-    json_object *jhidden = NULL;
-
-    struct uci_ptr ssid_ptr = {
-        .package = pkg->e.name,
-        .section = ifs->e.name,
-        .option = "ssid" 
-    };
-    if (uci_lookup_ptr(ctx, &ssid_ptr, NULL, 1) == UCI_OK)
-        jssid = json_object_new_string(ssid_ptr.o->v.string);
-    else
-        nakd_log(L_DEBUG, "Couldn't get \"ssid\"");
-
-    struct uci_ptr enc_ptr = {
-        .package = pkg->e.name,
-        .section = ifs->e.name,
-        .option = "encryption" 
-    };
-    if (uci_lookup_ptr(ctx, &enc_ptr, NULL, 1) == UCI_OK)
-        jenc = json_object_new_string(enc_ptr.o->v.string);
-    else
-        nakd_log(L_DEBUG, "Couldn't get \"encryption\"");
-
-    struct uci_ptr disabled_ptr = {
-        .package = pkg->e.name,
-        .section = ifs->e.name,
-        .option = "disabled" 
-    };
-    if (uci_lookup_ptr(ctx, &disabled_ptr, NULL, 1) == UCI_OK)
-        jdisabled = json_object_new_string(disabled_ptr.o->v.string);
-    else
-        nakd_log(L_DEBUG, "Couldn't get \"disabled\"");
-
-    struct uci_ptr hidden_ptr = {
-        .package = pkg->e.name,
-        .section = ifs->e.name,
-        .option = "hidden" 
-    };
-    if (uci_lookup_ptr(ctx, &hidden_ptr, NULL, 1) == UCI_OK)
-        jhidden = json_object_new_string(hidden_ptr.o->v.string);
-    else
-        nakd_log(L_DEBUG, "Couldn't get \"hidden\"");
+    json_object *jssid =
+        nakd_get_option_nolock(package, section, "ssid");
+    json_object *jenc =
+        nakd_get_option_nolock(package, section, "encryption");;
+    json_object *jdisabled =
+        nakd_get_option_nolock(package, section, "disabled");;
+    json_object *jhidden =
+        nakd_get_option_nolock(package, section, "hidden");
 
     *jnetwork = json_object_new_object();
     if (jssid != NULL)
