@@ -983,6 +983,18 @@ unlock:
     return jresponse;
 }
 
+static json_object *_json_strtoint(json_object *jstr, int def) {
+    json_object *jint;
+
+    if (jstr == NULL) {
+        jint = json_object_new_int(def);
+    } else {
+        jint = json_object_new_int(atoi(json_object_get_string(jstr)));
+        json_object_put(jstr);
+    }
+    return jint;
+}
+
 static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     json_object **jnetwork = priv;
     /* in case there are two sections with WLAN tag */
@@ -1002,10 +1014,8 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     json_object *jhidden =
         nakd_get_option_nolock(package, section, "hidden");
 
-    if (jdisabled == NULL)
-        jdisabled = json_object_new_string("0");
-    if (jhidden == NULL)
-        jhidden = json_object_new_string("0");
+    jdisabled = _json_strtoint(jdisabled, 0);
+    jhidden = _json_strtoint(jhidden, 0);
 
     *jnetwork = json_object_new_object();
     if (jssid != NULL)
