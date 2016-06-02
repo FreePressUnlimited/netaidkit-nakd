@@ -1053,6 +1053,70 @@ unlock:
     return jresponse;
 }
 
+static void _update_stored_config(json_object *jstored, json_object *jnew,
+                                                        const char *key) {
+    json_object *jnmembr = NULL;
+    json_object_object_get_ex(jnew, key, &jnmembr);
+
+    if (jnmembr != NULL) {
+        json_object *jmembr = NULL;
+        json_object_object_get_ex(jstored, key, &jmembr);
+
+        if (jmembr != NULL)
+            json_object_object_del(jstored, key);
+        json_object_object_add(jstored, key, jnmembr);
+    }
+}
+
+json_object *cmd_wlan_modify(json_object *jcmd, void *arg) {
+    json_object *jresponse;
+    json_object *jparams;
+
+    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
+        json_object_get_type(jparams) != json_type_object) {
+        goto params;
+    }
+
+    const char *ssid = nakd_net_ssid(jparams);
+    if (ssid == NULL)
+        goto params;
+
+    json_object *jnetwork = __get_stored_network(ssid);
+    if (jnetwork == NULL) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+                "Invalid request - no known network with ssid \"%s\"",
+                                                                ssid);
+        goto unlock;
+    }
+
+    /* TODO better jsonrpc API description */
+    _update_stored_config(jnetwork, jparams, "key");
+    _update_stored_config(jnetwork, jparams, "hidden");
+    _update_stored_config(jnetwork, jparams, "auto");
+    _update_stored_config(jnetwork, jparams, "encryption");
+
+    if (__save_stored_networks()) {
+        nakd_log(L_CRIT, "Couldn't store network credentials for %s", ssid);
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+              "Internal error - couldn't save network credentials.");
+        goto unlock;
+    }
+
+    json_object *jresult = json_object_new_string("OK"); 
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    goto unlock;
+
+params:
+    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
+                "Invalid parameters - params should be an object"
+                               " with at least \"ssid\" member");
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return jresponse;
+}
+
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "uci", "ubus", "netintf", "workqueue", NULL },
@@ -1136,3 +1200,14 @@ static struct nakd_command wlan_current = {
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_current);
+
+static struct nakd_command wlan_modify = {
+    .name = "wlan_modify",
+    .desc = "Modifies known wireless network configuration.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_current\", \"params\":"
+                     " {\"ssid\": \"...\", \"key\": \"...\", ..., \"id\": 42}",
+    .handler = cmd_wlan_modify,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_modify);
