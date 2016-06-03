@@ -76,8 +76,8 @@ static struct stage _stage_reset = {
     .err = NULL
 };
 
-static struct stage _stage_default = {
-    .name = "default",
+static struct stage _stage_offline = {
+    .name = "offline",
     .desc = "",
     .work = (struct stage_step[]){
        { 
@@ -100,7 +100,7 @@ static struct stage _stage_default = {
     .hooks = _firewall_hooks,
     .connectivity_level = CONNECTIVITY_NONE,
     .led = {
-        .name = "stage_default",
+        .name = "stage_offline",
         .priority = LED_PRIORITY_NOTIFICATION,
         .states = (struct led_state[]){
             { "LED1_path", NULL, 1 },
@@ -226,7 +226,7 @@ static struct stage _stage_online = {
 
 static struct stage *_stages[] = {
     &_stage_reset,
-    &_stage_default,
+    &_stage_offline,
     &_stage_vpn,
     &_stage_tor,
     &_stage_online,
