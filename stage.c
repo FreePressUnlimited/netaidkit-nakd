@@ -42,9 +42,13 @@ struct {
 } static _stage_status;
 static pthread_mutex_t _stage_status_mutex;
 
+static void __clear_stage_status(void) {
+    memset(&_stage_status, 0, sizeof _stage_status);
+}
+
 static void _clear_stage_status(void) {
     pthread_mutex_lock(&_stage_status_mutex);
-    memset(&_stage_status, 0, sizeof _stage_status);
+    __clear_stage_status();
     pthread_mutex_unlock(&_stage_status_mutex);
 }
 
@@ -331,7 +335,15 @@ static int _run_uci_hooks(struct stage *stage) {
 static void _stage_spec(void *priv) {
     struct stage *stage = *(struct stage **)(priv);
 
-    _clear_stage_status();
+    pthread_mutex_lock(&_stage_change_mutex);
+    nakd_led_condition_add(&_led_stage_working);
+
+    if (_requested_stage == NULL || _current_stage == _requested_stage)
+        goto unlock;
+
+    pthread_mutex_lock(&_stage_status_mutex);
+    __clear_stage_status();
+    pthread_mutex_unlock(&_stage_status_mutex);
 
     enum nakd_connectivity current_connectivity = nakd_connectivity();
     if ((int)(current_connectivity) < (int)(stage->connectivity_level)) {
@@ -343,14 +355,11 @@ static void _stage_spec(void *priv) {
         pthread_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Insufficient connectivity level.";
         pthread_mutex_unlock(&_stage_status_mutex);
-        return;
+        goto unlock;
     }
 
     nakd_log(L_INFO, "Stage %s", stage->name);
-    pthread_mutex_lock(&_stage_change_mutex);
     struct stage *previous = _current_stage;
-
-    nakd_led_condition_add(&_led_stage_working);
 
     pthread_mutex_lock(&_stage_status_mutex);
     _stage_status.step_count = _step_count(stage);
@@ -393,22 +402,10 @@ static struct work_desc _stage_work_desc = {
 
 static void _stage_update_cb(siginfo_t *timer_info,
                         struct nakd_timer *timer) {
-    pthread_mutex_lock(&_stage_change_mutex);
-    pthread_mutex_lock(&_stage_status_mutex);
-
-    if (_requested_stage == NULL)
-        goto unlock;
-
-    if (_current_stage != _requested_stage) {
-        if (!nakd_work_pending(nakd_wq, _stage_work_desc.name)) {
-            struct work *stage_wq_entry = nakd_alloc_work(&_stage_work_desc);
-            nakd_workqueue_add(nakd_wq, stage_wq_entry);
-        }
+    if (!nakd_work_pending(nakd_wq, _stage_work_desc.name)) {
+        struct work *stage_wq_entry = nakd_alloc_work(&_stage_work_desc);
+        nakd_workqueue_add(nakd_wq, stage_wq_entry);
     }
-
-unlock:
-    pthread_mutex_unlock(&_stage_status_mutex);
-    pthread_mutex_unlock(&_stage_change_mutex);
 }
 
 static struct stage *_get_stage(const char *name) {
