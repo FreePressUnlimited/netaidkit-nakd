@@ -1,4 +1,6 @@
+#include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <pthread.h>
 #include "nak_uci.h"
 #include "log.h"
@@ -18,6 +20,7 @@ struct nakd_config_default {
     { "LED1_path", "/sys/class/leds/gl-connect:green:lan/brightness" },
     { "LED2_path", "/sys/class/leds/gl-connect:red:wlan/brightness" },
     { "stage", "reset" },
+    { "wlan_autoconnect", "1" },
     {}
 };
 
@@ -99,6 +102,22 @@ unlock:
     return status;
 }
 
+int nakd_config_key_int(const char *key, int *ret) {
+    char *uci_str = NULL;
+    if (!nakd_config_key(key, &uci_str)) {
+        errno = 0;
+        int res = (int)(strtol(uci_str, NULL, 10));
+        if (errno) {
+            nakd_log(L_CRIT, "Configuration value \"%s\" isn't an integer. "
+                       "(key: \"%s\") (%s)", uci_str, key, strerror(errno));
+            return 1;
+        }
+        *ret = res;
+        return 0;
+    }
+    return 1;
+}
+
 int nakd_config_set(const char *key, const char *val) {
     int status = 0;
     pthread_mutex_lock(&_config_mutex);
@@ -139,6 +158,12 @@ cleanup:
 unlock:
     pthread_mutex_unlock(&_config_mutex);
     return status;
+}
+
+int nakd_config_set_int(const char *key, int val) {
+    char buf[32];
+    snprintf(buf, sizeof buf, "%d", val);
+    return nakd_config_set(key, buf);
 }
 
 static struct nakd_module module_config = {

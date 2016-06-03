@@ -16,6 +16,7 @@
 #include "workqueue.h"
 #include "event.h"
 #include "iwinfo_cli.h"
+#include "config.h"
 
 #define WLAN_NETWORK_LIST_PATH "/etc/nakd/wireless_networks"
 
@@ -288,8 +289,18 @@ static json_object *__choose_network(void) {
 }
 
 json_object *nakd_wlan_candidate(void) {
+    json_object *jnetwork = NULL;
     pthread_mutex_lock(&_wlan_mutex);
-    json_object *jnetwork = __choose_network();
+
+    int autoconnect; 
+    if (nakd_config_key_int("wlan_autoconnect", &autoconnect))
+        autoconnect = 0;
+
+    if (autoconnect)
+        jnetwork = __choose_network();
+    else
+        nakd_log(L_DEBUG, "Autoconnect disabled.");
+
     pthread_mutex_unlock(&_wlan_mutex);
     return jnetwork;
 }
@@ -1127,9 +1138,60 @@ unlock:
     return jresponse;
 }
 
+json_object *cmd_wlan_autoconnect_set(json_object *jcmd, void *arg) {
+    json_object *jresponse;
+    json_object *jparams;
+
+    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
+        json_object_get_type(jparams) != json_type_boolean) {
+        goto params;
+    }
+
+    if (nakd_config_set_int("wlan_autoconnect",
+           json_object_get_boolean(jparams))) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                     "Internal error - couldn't save configuration");
+        goto unlock;
+    }
+
+    json_object *jresult = json_object_new_string("OK");
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    goto unlock;
+
+params:
+    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
+                    "Invalid parameters - params isn't boolean");
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return jresponse;
+}
+
+json_object *cmd_wlan_autoconnect_get(json_object *jcmd, void *arg) {
+    json_object *jresponse;
+
+    pthread_mutex_lock(&_wlan_mutex);
+
+    int autoconnect;
+    if (nakd_config_key_int("wlan_autoconnect", &autoconnect)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+               "Internal error - couldn't read configuration value");
+        goto unlock;
+    }
+
+    jresponse = nakd_jsonrpc_response_success(jcmd,
+                 json_object_new_int(autoconnect));
+
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return jresponse;
+}
+
 static struct nakd_module module_wlan = {
     .name = "wlan",
-    .deps = (const char *[]){ "uci", "ubus", "netintf", "workqueue", NULL },
+    .deps = (const char *[]){ "config", "uci", "ubus", "netintf", "workqueue",
+                                                                       NULL },
     .init = _wlan_init,
     .cleanup = _wlan_cleanup 
 };
@@ -1221,3 +1283,25 @@ static struct nakd_command wlan_modify = {
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_modify);
+
+static struct nakd_command wlan_autoconnect_set = {
+    .name = "wlan_autoconnect_set",
+    .desc = "Sets global WLAN autoconnect switch.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_autoconnect_set\", "
+                                            "\"params\": true, \"id\": 42}",
+    .handler = cmd_wlan_autoconnect_set,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_autoconnect_set);
+
+static struct nakd_command wlan_autoconnect_get = {
+    .name = "wlan_autoconnect_get",
+    .desc = "Queries global WLAN autoconnect switch state.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_autoconnect_get\","
+                                                            " \"id\": 42}",
+    .handler = cmd_wlan_autoconnect_get,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_autoconnect_get);
