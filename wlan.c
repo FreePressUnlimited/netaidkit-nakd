@@ -750,22 +750,20 @@ int nakd_wlan_connect(json_object *jnetwork) {
     return status;
 }
 
-int nakd_wlan_disconnect(void) {
-    int status = 0;
-
+static int __wlan_disconnect(void) {
     nakd_log(L_INFO, "Disabling WLAN.");
-    pthread_mutex_lock(&_wlan_mutex);
-
     if (nakd_disable_interface(NAKD_WLAN)) {
-        status = 1;
-        goto unlock;
+        return 1;
     }
 
     _connected_timestamp = 0;
     __swap_current_network(NULL);
-    status = _reload_wireless_config();
+    return _reload_wireless_config();
+}
 
-unlock:
+int nakd_wlan_disconnect(void) {
+    pthread_mutex_lock(&_wlan_mutex);
+    int status = __wlan_disconnect();
     pthread_mutex_unlock(&_wlan_mutex);
     return status;
 }
@@ -1188,6 +1186,50 @@ unlock:
     return jresponse;
 }
 
+static void _wlan_disconnect_async_work(void *priv) {
+    /* 
+     * Leave some time to send response before changing configuration.
+     * Changing client interface configuration can affect AP on some
+     * platforms.
+     */
+    sleep(1);
+
+    if (nakd_wlan_disconnect()) {
+        nakd_log(L_CRIT, "Couldn't update WLAN configuration (async "
+                                                      "disconnect)");
+    }
+}
+
+static struct work_desc _disconnect_desc = {
+    .impl = _wlan_disconnect_async_work,
+    .name = "wlan disconnect"
+};
+
+static void _wlan_disconnect_async(void) {
+    struct work *disconnect_wq_entry = nakd_alloc_work(&_disconnect_desc);
+    nakd_workqueue_add(nakd_wq, disconnect_wq_entry);
+}
+
+json_object *cmd_wlan_disconnect(json_object *jcmd, void *arg) {
+    json_object *jresponse;
+    pthread_mutex_lock(&_wlan_mutex);
+
+    if (nakd_config_set_int("wlan_autoconnect", 0)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+              "Internal error - couldn't change nakd configuration");
+        goto unlock;
+    }
+
+    _wlan_disconnect_async();
+
+    json_object *jresult = json_object_new_string("OK");
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return jresponse;
+}
+
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "config", "uci", "ubus", "netintf", "workqueue",
@@ -1305,3 +1347,15 @@ static struct nakd_command wlan_autoconnect_get = {
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_autoconnect_get);
+
+static struct nakd_command wlan_disconnect = {
+    .name = "wlan_disconnect",
+    .desc = "Disconnects from any WLAN NAK might be connected to. "
+                                      "Disables WLAN autoconnect.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_disconnect\","
+                                                       " \"id\": 42}",
+    .handler = cmd_wlan_disconnect,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_disconnect);
