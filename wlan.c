@@ -1324,8 +1324,8 @@ NAKD_DECLARE_COMMAND(wlan_current);
 static struct nakd_command wlan_modify = {
     .name = "wlan_modify",
     .desc = "Modifies known wireless network configuration.",
-    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_current\", \"params\":"
-                     " {\"ssid\": \"...\", \"key\": \"...\", ..., \"id\": 42}",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_modify\", \"params\":"
+                   " {\"ssid\": \"...\", \"key\": \"...\", ...}, \"id\": 42}",
     .handler = cmd_wlan_modify,
     .access = ACCESS_USER,
     .module = &module_wlan
