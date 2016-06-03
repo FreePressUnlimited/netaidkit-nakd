@@ -566,6 +566,16 @@ json_object *cmd_stage_status(json_object *jcmd, void *param) {
     return jresponse;
 }
 
+json_object *cmd_stage_list(json_object *jcmd, void *param) {
+    json_object *jresult = json_object_new_array();
+    for (struct stage **stage = _stages; *stage != NULL; stage++) {
+        json_object *jdesc = __desc_stage(*stage);
+        json_object_array_add(jresult, jdesc);
+    }
+    json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    return jresponse;
+}
+
 static struct nakd_module module_stage = {
     .name = "stage",
     .deps = (const char *[]){ "workqueue", "connectivity", "notification",
@@ -615,3 +625,13 @@ static struct nakd_command stage_status = {
     .module = &module_stage
 };
 NAKD_DECLARE_COMMAND(stage_status);
+
+static struct nakd_command stage_list = {
+    .name = "stage_list",
+    .desc = "Returns an array of available stages.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_list\", \"id\": 42}",
+    .handler = cmd_stage_list,
+    .access = ACCESS_USER,
+    .module = &module_stage
+};
+NAKD_DECLARE_COMMAND(stage_list);
