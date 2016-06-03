@@ -715,6 +715,12 @@ static int _validate_wlan_config(json_object *jnetwork) {
 }
 
 static void _configure_ap_work(void *priv) {
+    /* 
+     * Leave some time to send response before changing configuration.
+     * This function will run asynchronously in nakd_wq context.
+     */
+    sleep(1);
+
     json_object *jnetwork = priv;
 
     pthread_mutex_lock(&_wlan_mutex);
