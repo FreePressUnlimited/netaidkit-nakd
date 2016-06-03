@@ -162,7 +162,8 @@ static int _message_loop(struct connection *conn) {
                                                     jtok->char_offset);
 
             /* doesn't allocate memory */
-            const char *jmsg_string = json_object_to_json_string(jmsg);
+            const char *jmsg_string = json_object_to_json_string_ext(jmsg,
+                                                 JSON_C_TO_STRING_PRETTY);
             nakd_log(L_DEBUG, "Got message: %s", jmsg_string);
 
             jresponse = nakd_handle_message(jmsg);
@@ -196,7 +197,8 @@ static int _message_loop(struct connection *conn) {
             }
 
             nakd_log(L_DEBUG, "Response sent: %s",
-                json_object_to_json_string(jresponse));
+                json_object_to_json_string_ext(jresponse,
+                               JSON_C_TO_STRING_PRETTY));
             json_object_put(jresponse), jresponse = NULL;
         }
 
