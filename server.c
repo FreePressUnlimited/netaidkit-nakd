@@ -177,7 +177,8 @@ static int _message_loop(struct connection *conn) {
 
         /* jresponse will be null while handling notifications. */
         if (jresponse != NULL) {
-            jrstr = json_object_get_string(jresponse);
+            jrstr = json_object_to_json_string_ext(jresponse,
+                                    JSON_C_TO_STRING_PRETTY);
 
             while (nb_resp = strlen(jrstr)) {
                 nb_sent = sendto(conn->sockfd, jrstr, nb_resp, 0,
@@ -196,9 +197,7 @@ static int _message_loop(struct connection *conn) {
                 jrstr += nb_sent;
             }
 
-            nakd_log(L_DEBUG, "Response sent: %s",
-                json_object_to_json_string_ext(jresponse,
-                               JSON_C_TO_STRING_PRETTY));
+            nakd_log(L_DEBUG, "Response sent: %s", jrstr);
             json_object_put(jresponse), jresponse = NULL;
         }
 
