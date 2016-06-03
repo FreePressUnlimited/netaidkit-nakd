@@ -432,8 +432,10 @@ json_object *cmd_stage_set(json_object *jcmd, void *param) {
         json_object *jresult = json_object_new_string("OK");
         jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     } else {
-        const char *errstr = _current_stage->err != NULL ? _current_stage->err
-                                      : "Internal error while changing stage";
+        const char *errstr = "Internal error while changing stage";
+        if (_current_stage != NULL && _current_stage->err != NULL)
+            errstr = _current_stage->err;
+
         nakd_log(L_DEBUG, errstr);
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR, errstr);
     }
