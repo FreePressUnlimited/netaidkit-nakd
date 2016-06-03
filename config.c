@@ -134,7 +134,7 @@ int nakd_config_set(const char *key, const char *val) {
     nakd_uci_commit(&nakd_pkg, true);
 
 cleanup:
-    if (!nakd_unload_uci_package(nakd_pkg))
+    if (nakd_unload_uci_package(nakd_pkg))
         nakd_log(L_CRIT, "Couldn't unload nakd UCI package.");
 unlock:
     pthread_mutex_unlock(&_config_mutex);
