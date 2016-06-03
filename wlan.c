@@ -116,7 +116,7 @@ const char *nakd_net_ssid(json_object *jnetwork) {
 }
 
 int nakd_net_hidden(json_object *jnetwork) {
-    return nakd_json_get_int(jnetwork, "hidden");
+    return nakd_json_get_bool(jnetwork, "hidden");
 }
 
 int nakd_net_auto(json_object *jnetwork) {
@@ -546,7 +546,7 @@ const char *nakd_net_encryption(json_object *jnetwork) {
 }
 
 int nakd_net_disabled(json_object *jnetwork) {
-    return nakd_json_get_int(jnetwork, "disabled");
+    return nakd_json_get_bool(jnetwork, "disabled");
 }
 
 static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
@@ -998,16 +998,16 @@ unlock:
     return jresponse;
 }
 
-static json_object *_json_strtoint(json_object *jstr, int def) {
-    json_object *jint;
+static json_object *_json_strtobool(json_object *jstr, int def) {
+    json_object *jbool;
 
     if (jstr == NULL) {
-        jint = json_object_new_int(def);
+        jbool = json_object_new_boolean(def);
     } else {
-        jint = json_object_new_int(atoi(json_object_get_string(jstr)));
+        jbool = json_object_new_boolean(atoi(json_object_get_string(jstr)));
         json_object_put(jstr);
     }
-    return jint;
+    return jbool;
 }
 
 static int _get_current_wlan_config(struct uci_option *option, void *priv) {
@@ -1029,8 +1029,8 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     json_object *jhidden =
         nakd_get_option_nolock(package, section, "hidden");
 
-    jdisabled = _json_strtoint(jdisabled, 0);
-    jhidden = _json_strtoint(jhidden, 0);
+    jdisabled = _json_strtobool(jdisabled, 0);
+    jhidden = _json_strtobool(jhidden, 0);
 
     *jnetwork = json_object_new_object();
     if (jssid != NULL)
@@ -1093,7 +1093,7 @@ static void _update_stored_config(json_object *jstored, json_object *jnew,
     }
 }
 
-json_object *cmd_wlan_modify(json_object *jcmd, void *arg) {
+json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
     json_object *jresponse;
     json_object *jparams;
 
@@ -1250,7 +1250,7 @@ static struct nakd_command wlan_connect = {
     .desc = "Connects to a wireless network. Can store network credentials.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_connect\", \"params\":"
                 "{\"ssid\": \"network SSID\", \"key\": \"network passphrase\","
-                                                  "\"store\": 1}, \"id\": 42}",
+                                               "\"store\": true}, \"id\": 42}",
     .handler = cmd_wlan_connect,
     .access = ACCESS_USER,
     .module = &module_wlan
@@ -1292,7 +1292,7 @@ static struct nakd_command configure_ap = {
     .desc = "Configures the access point.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"configure_ap\", \"params\":"
          " {\"ssid\": \"AP SSID\", \"key\": \"...\", \"encryption\": \"psk2\","
-                               " \"disabled\": 0, \"hidden\": 0}, \"id\": 42}",
+                       " \"disabled\": false, \"hidden\": false}, \"id\": 42}",
     .handler = cmd_configure_ap,
     .access = ACCESS_USER,
     .module = &module_wlan
@@ -1321,16 +1321,17 @@ static struct nakd_command wlan_current = {
 };
 NAKD_DECLARE_COMMAND(wlan_current);
 
-static struct nakd_command wlan_modify = {
-    .name = "wlan_modify",
+static struct nakd_command wlan_modify_stored = {
+    .name = "wlan_modify_stored",
     .desc = "Modifies known wireless network configuration.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_modify\", \"params\":"
-                   " {\"ssid\": \"...\", \"key\": \"...\", ...}, \"id\": 42}",
-    .handler = cmd_wlan_modify,
+                   " {\"ssid\": \"...\", \"key\": \"...\", \"hidden\": true, "
+                                               "\"auto\": true}, \"id\": 42}",
+    .handler = cmd_wlan_modify_stored,
     .access = ACCESS_USER,
     .module = &module_wlan
 };
-NAKD_DECLARE_COMMAND(wlan_modify);
+NAKD_DECLARE_COMMAND(wlan_modify_stored);
 
 static struct nakd_command wlan_autoconnect_set = {
     .name = "wlan_autoconnect_set",
