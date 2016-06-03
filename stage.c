@@ -555,7 +555,7 @@ json_object *cmd_stage_status(json_object *jcmd, void *param) {
     if (_stage_status.step_name != NULL) {
         json_object *jstep_name =
             json_object_new_string(_stage_status.step_name);
-        json_object_object_add(jresult, "step", jstep_name);
+        json_object_object_add(jresult, "step_name", jstep_name);
 
         json_object *jstep_count =
             json_object_new_int(_stage_status.step_count);
