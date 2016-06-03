@@ -22,7 +22,7 @@
 
 #define STAGE_UPDATE_INTERVAL 2500 /* ms */
 
-static pthread_mutex_t _stage_mutex;
+static pthread_mutex_t _stage_change_mutex;
 static struct nakd_timer *_stage_update_timer;
 
 static void toggle_rule(const char *hook_name, const char *state,
@@ -33,6 +33,20 @@ static struct nakd_uci_hook _firewall_hooks[] = {
     {"nak_rule_disable", toggle_rule},
     {NULL, NULL}
 };
+
+struct {
+    const char *error;
+    const char *step_name;
+    int step_count;
+    int step;
+} static _stage_status;
+static pthread_mutex_t _stage_status_mutex;
+
+static void _clear_stage_status(void) {
+    pthread_mutex_lock(&_stage_status_mutex);
+    memset(&_stage_status, 0, sizeof _stage_status);
+    pthread_mutex_unlock(&_stage_status_mutex);
+}
 
 static int _run_stage_scripts(struct stage *stage);
 static int _start_openvpn(struct stage *stage);
@@ -72,8 +86,6 @@ static struct stage _stage_reset = {
         },
         .blink.on = 0,
     },
-
-    .err = NULL
 };
 
 static struct stage _stage_offline = {
@@ -109,8 +121,6 @@ static struct stage _stage_offline = {
         },
         .blink.on = 0,
     },
-
-    .err = NULL
 };
 
 static struct stage _stage_vpn = {
@@ -146,8 +156,6 @@ static struct stage _stage_vpn = {
         },
         .blink.on = 0,
     },
-
-    .err = NULL
 };
 
 static struct stage _stage_tor = {
@@ -183,8 +191,6 @@ static struct stage _stage_tor = {
         },
         .blink.on = 0,
     },
-
-    .err = NULL
 };
 
 static struct stage _stage_online = {
@@ -220,8 +226,6 @@ static struct stage _stage_online = {
         },
         .blink.on = 0,
     },
-
-    .err = NULL
 };
 
 static struct stage *_stages[] = {
@@ -248,6 +252,16 @@ static struct led_condition _led_stage_working = {
 
 static struct stage *_current_stage = NULL;
 static struct stage *_requested_stage = NULL;
+
+static int _step_count(struct stage *stage) {
+    if (stage->work == NULL)
+        return 0;
+
+    int n = 0;
+    for (const struct stage_step *step = stage->work; step->name; step++)
+        n++;
+    return n;
+}
 
 static void toggle_rule(const char *hook_name, const char *state,
                                     struct uci_option *option) {
@@ -286,7 +300,9 @@ static int _run_stage_scripts(struct stage *stage) {
 
 static int _start_openvpn(struct stage *stage) {
     if (nakd_start_openvpn()) {
-        stage->err = "Internal error while starting OpenVPN daemon";
+        pthread_mutex_lock(&_stage_status_mutex);
+        _stage_status.error = "Internal error while starting OpenVPN daemon";
+        pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
     }
     return 0;
@@ -294,7 +310,9 @@ static int _start_openvpn(struct stage *stage) {
 
 static int _stop_openvpn(struct stage *stage) {
     if (nakd_stop_openvpn()) {
-        stage->err = "Internal error while stopping OpenVPN daemon";
+        pthread_mutex_lock(&_stage_status_mutex);
+        _stage_status.error = "Internal error while stopping OpenVPN daemon";
+        pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
     }
     return 0;
@@ -302,7 +320,9 @@ static int _stop_openvpn(struct stage *stage) {
 
 static int _run_uci_hooks(struct stage *stage) {
     if (nakd_call_uci_hooks(stage->hooks, stage->name)) {
-        stage->err = "Internal error while rewriting UCI configuration";
+        pthread_mutex_lock(&_stage_status_mutex);
+        _stage_status.error = "Internal error while rewriting UCI configuration";
+        pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
     }
     return 0;
@@ -310,7 +330,8 @@ static int _run_uci_hooks(struct stage *stage) {
 
 static void _stage_spec(void *priv) {
     struct stage *stage = *(struct stage **)(priv);
-    struct stage *previous = _current_stage;
+
+    _clear_stage_status();
 
     enum nakd_connectivity current_connectivity = nakd_connectivity();
     if ((int)(current_connectivity) < (int)(stage->connectivity_level)) {
@@ -319,23 +340,39 @@ static void _stage_spec(void *priv) {
           "(current: %s, required: %s) - change postponed.", stage->name,
                    nakd_connectivity_string[(int)(current_connectivity)],
              nakd_connectivity_string[(int)(stage->connectivity_level)]);
+        _stage_status.error = "Insufficient connectivity level.";
         return;
     }
 
     nakd_log(L_INFO, "Stage %s", stage->name);
-    pthread_mutex_lock(&_stage_mutex);
+    pthread_mutex_lock(&_stage_change_mutex);
+    struct stage *previous = _current_stage;
+
     nakd_led_condition_add(&_led_stage_working);
-    stage->err = NULL;
+
+    pthread_mutex_lock(&_stage_status_mutex);
+    _stage_status.step_count = _step_count(stage);
+    pthread_mutex_unlock(&_stage_status_mutex);
     for (const struct stage_step *step = stage->work; step->name != NULL;
                                                                 step++) {
-        nakd_log(L_INFO, "Stage %s: running step %s", stage->name, step->name);
+        pthread_mutex_lock(&_stage_status_mutex);
+        _stage_status.step++;
+        _stage_status.step_name = step->name;
+        pthread_mutex_unlock(&_stage_status_mutex);
+
+        nakd_log(L_INFO, "Stage %s step: %s (%d/%d)", stage->name, step->name,
+                                _stage_status.step, _stage_status.step_count);
         if (step->work(stage))
-            goto unlock; /* stage->err set in step->work() */
+            goto unlock;
     }
 
+    pthread_mutex_lock(&_stage_status_mutex);
     _current_stage = stage;
-    _current_stage->err = NULL;
+    _requested_stage = NULL;
+    pthread_mutex_unlock(&_stage_status_mutex);
     nakd_log(L_INFO, "Stage %s: done!", stage->name);
+
+    _clear_stage_status();
 
     if (previous != NULL)
         nakd_led_condition_remove(previous->led.name);
@@ -343,7 +380,7 @@ static void _stage_spec(void *priv) {
 
 unlock:
     nakd_led_condition_remove(_led_stage_working.name);
-    pthread_mutex_unlock(&_stage_mutex);
+    pthread_mutex_unlock(&_stage_change_mutex);
 }
 
 static struct work_desc _stage_work_desc = {
@@ -354,14 +391,14 @@ static struct work_desc _stage_work_desc = {
 
 static void _stage_update_cb(siginfo_t *timer_info,
                         struct nakd_timer *timer) {
-    pthread_mutex_lock(&_stage_mutex);
+    pthread_mutex_lock(&_stage_status_mutex);
     if (_current_stage != _requested_stage) {
         if (!nakd_work_pending(nakd_wq, _stage_work_desc.name)) {
             struct work *stage_wq_entry = nakd_alloc_work(&_stage_work_desc);
             nakd_workqueue_add(nakd_wq, stage_wq_entry);
         }
     }
-    pthread_mutex_unlock(&_stage_mutex);
+    pthread_mutex_unlock(&_stage_status_mutex);
 }
 
 static struct stage *_get_stage(const char *name) {
@@ -373,12 +410,14 @@ static struct stage *_get_stage(const char *name) {
 }
 
 static int _stage_init(void) {
-    pthread_mutex_init(&_stage_mutex, NULL);
+    pthread_mutex_init(&_stage_change_mutex, NULL);
+    pthread_mutex_init(&_stage_status_mutex, NULL);
 
     char *config_stage;
     nakd_config_key("stage", &config_stage);
     nakd_assert((_requested_stage = _get_stage(config_stage)) != NULL);
 
+    /* retry automatically */
     _stage_update_timer = nakd_timer_add(STAGE_UPDATE_INTERVAL,
                                        _stage_update_cb, NULL);
 
@@ -388,15 +427,20 @@ static int _stage_init(void) {
 
 static int _stage_cleanup(void) {
     timer_delete(_stage_update_timer);
-    pthread_mutex_destroy(&_stage_mutex);
+    pthread_mutex_destroy(&_stage_change_mutex);
+    pthread_mutex_destroy(&_stage_status_mutex);
     return 0;
 }
 
 void nakd_stage_spec(struct stage *stage) {
-    pthread_mutex_lock(&_stage_mutex);
+    _clear_stage_status();
+
+    pthread_mutex_lock(&_stage_change_mutex);
+    pthread_mutex_lock(&_stage_status_mutex);
     _requested_stage = stage;
     nakd_config_set("stage", stage->name);
-    pthread_mutex_unlock(&_stage_mutex);
+    pthread_mutex_unlock(&_stage_status_mutex);
+    pthread_mutex_unlock(&_stage_change_mutex);
 
     struct work *stage_wq_entry = nakd_alloc_work(&_stage_work_desc);
     nakd_workqueue_add(nakd_wq, stage_wq_entry);
@@ -429,15 +473,11 @@ json_object *cmd_stage_set(json_object *jcmd, void *param) {
 
     const char *stage = json_object_get_string(jparams);
     if (!nakd_stage(stage)) {
-        json_object *jresult = json_object_new_string("OK");
+        json_object *jresult = json_object_new_string("QUEUED");
         jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     } else {
-        const char *errstr = "Internal error while changing stage";
-        if (_current_stage != NULL && _current_stage->err != NULL)
-            errstr = _current_stage->err;
-
-        nakd_log(L_DEBUG, errstr);
-        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR, errstr);
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                                                    "No such stage");
     }
 
 response:
@@ -459,19 +499,15 @@ static json_object *__desc_stage(struct stage *stage) {
     json_object *jdesc = json_object_new_string(stage->desc);
     json_object *jconnectivity = json_object_new_string(
         nakd_connectivity_string[stage->connectivity_level]);
-    json_object *jerr = stage->err == NULL ? NULL :
-                json_object_new_string(stage->err);
 
     json_object_object_add(jresult, "name", jname);
     json_object_object_add(jresult, "desc", jdesc);
     json_object_object_add(jresult, "connectivity", jconnectivity);
-    if (jerr != NULL)
-        json_object_object_add(jresult, "errmsg", jerr);
     return jresult;
 }
 
-json_object *cmd_stage_info(json_object *jcmd, void *param) {
-    pthread_mutex_lock(&_stage_mutex);
+json_object *cmd_stage_current(json_object *jcmd, void *param) {
+    pthread_mutex_lock(&_stage_status_mutex);
 
     json_object *jresult;
     if (_current_stage != NULL)
@@ -480,7 +516,46 @@ json_object *cmd_stage_info(json_object *jcmd, void *param) {
         jresult = json_object_new_string("No stage set.");
 
     json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
-    pthread_mutex_unlock(&_stage_mutex);
+    pthread_mutex_unlock(&_stage_status_mutex);
+    return jresponse;
+}
+
+json_object *cmd_stage_requested(json_object *jcmd, void *param) {
+    pthread_mutex_lock(&_stage_status_mutex);
+
+    json_object *jresult;
+    if (_requested_stage != NULL)
+        jresult = __desc_stage(_requested_stage);
+    else
+        jresult = json_object_new_string("No requested stage.");
+
+    json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    pthread_mutex_unlock(&_stage_status_mutex);
+    return jresponse;
+}
+
+json_object *cmd_stage_status(json_object *jcmd, void *param) {
+    pthread_mutex_lock(&_stage_status_mutex);
+
+    json_object *jresult = json_object_new_object();
+    if (_stage_status.error != NULL) {
+        json_object *jerror = json_object_new_string(_stage_status.error);
+        json_object_object_add(jresult, "error", jerror);
+    }
+    if (_stage_status.step_name != NULL) {
+        json_object *jstep_name =
+            json_object_new_string(_stage_status.step_name);
+        json_object_object_add(jresult, "step", jstep_name);
+
+        json_object *jstep_count =
+            json_object_new_int(_stage_status.step_count);
+        json_object_object_add(jresult, "step_count", jstep_count);
+        json_object *jstep = json_object_new_int(_stage_status.step);
+        json_object_object_add(jresult, "step", jstep);
+    }
+
+    json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    pthread_mutex_unlock(&_stage_status_mutex);
     return jresponse;
 }
 
@@ -504,12 +579,32 @@ static struct nakd_command stage_set = {
 };
 NAKD_DECLARE_COMMAND(stage_set);
 
-static struct nakd_command stage_info = {
-    .name = "stage_info",
-    .desc = "Returns current stage together with possible error description.",
-    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_info\", \"id\": 42}",
-    .handler = cmd_stage_info,
+static struct nakd_command stage_current = {
+    .name = "stage_current",
+    .desc = "Returns current stage description.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_current\", \"id\": 42}",
+    .handler = cmd_stage_current,
     .access = ACCESS_USER,
     .module = &module_stage
 };
-NAKD_DECLARE_COMMAND(stage_info);
+NAKD_DECLARE_COMMAND(stage_current);
+
+static struct nakd_command stage_requested = {
+    .name = "stage_requested",
+    .desc = "Returns requested stage description.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_requested\", \"id\": 42}",
+    .handler = cmd_stage_requested,
+    .access = ACCESS_USER,
+    .module = &module_stage
+};
+NAKD_DECLARE_COMMAND(stage_requested);
+
+static struct nakd_command stage_status = {
+    .name = "stage_status",
+    .desc = "Returns information on stage change process.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_current\", \"id\": 42}",
+    .handler = cmd_stage_status,
+    .access = ACCESS_USER,
+    .module = &module_stage
+};
+NAKD_DECLARE_COMMAND(stage_status);

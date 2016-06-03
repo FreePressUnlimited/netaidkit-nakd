@@ -23,9 +23,6 @@ struct stage {
     struct led_condition led;
 
     struct nakd_uci_hook *hooks;
-
-    /* user-friendly error message */
-    char *err;
 };
 
 json_object *cmd_stage_set(json_object *jcmd, void *param);
