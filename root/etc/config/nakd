@@ -1,7 +1,7 @@
 package 'nakd'
 
 config 'nakd' 'nakd'
-        option stage default
+        option stage reset
         option LED1_path "/sys/class/leds/gl-connect:green:lan/brightness"
         option LED2_path "/sys/class/leds/gl-connect:red:wlan/brightness"
         option wlan_autoconnect 1
