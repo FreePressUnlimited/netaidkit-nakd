@@ -918,7 +918,7 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
        }
     }
 
-    json_object *jresult = json_object_new_string("OK");
+    json_object *jresult = json_object_new_string("QUEUED");
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     goto unlock;
 
@@ -955,7 +955,7 @@ json_object *cmd_configure_ap(json_object *jcmd, void *arg) {
         goto unlock;
     }
 
-    json_object *jresult = json_object_new_string("OK");
+    json_object *jresult = json_object_new_string("QUEUED");
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     goto unlock;
 
