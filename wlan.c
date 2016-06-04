@@ -1083,14 +1083,8 @@ static void _update_stored_config(json_object *jstored, json_object *jnew,
     json_object *jnmembr = NULL;
     json_object_object_get_ex(jnew, key, &jnmembr);
 
-    if (jnmembr != NULL) {
-        json_object *jmembr = NULL;
-        json_object_object_get_ex(jstored, key, &jmembr);
-
-        if (jmembr != NULL)
-            json_object_object_del(jstored, key);
+    if (jnmembr != NULL)
         json_object_object_add(jstored, key, jnmembr);
-    }
 }
 
 json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
