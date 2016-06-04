@@ -18,7 +18,7 @@
 #include "misc.h"
 #include "command.h"
 
-#define SOCK_PATH "/run/openvpn/openvpn.sock"
+#define SOCK_PATH "/run/nakd/openvpn.sock"
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
 #define AUTH_PATH "/nak/ovpn/auth.txt"
 
