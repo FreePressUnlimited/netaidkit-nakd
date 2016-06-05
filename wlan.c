@@ -1079,12 +1079,16 @@ unlock:
 }
 
 static void _update_stored_config(json_object *jstored, json_object *jnew,
-                                                        const char *key) {
+                                    const char *key, int take_ownership) {
     json_object *jnmembr = NULL;
     json_object_object_get_ex(jnew, key, &jnmembr);
 
-    if (jnmembr != NULL)
+    if (jnmembr != NULL) {
+        /* refcount not incremented in json_object_object_add */
+        if (take_ownership)
+            json_object_get(jnmembr);
         json_object_object_add(jstored, key, jnmembr);
+    }
 }
 
 json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
@@ -1110,11 +1114,16 @@ json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
         goto unlock;
     }
 
-    /* TODO better jsonrpc API description */
-    _update_stored_config(jnetwork, jparams, "key");
-    _update_stored_config(jnetwork, jparams, "hidden");
-    _update_stored_config(jnetwork, jparams, "auto");
-    _update_stored_config(jnetwork, jparams, "encryption");
+    /* 
+     * Takes ownership of found member objects - jparams will cease to exist
+     * outside of cmd_* scope.
+     *
+     * TODO better jsonrpc API description.
+     */
+    _update_stored_config(jnetwork, jparams, "key", 1);
+    _update_stored_config(jnetwork, jparams, "hidden", 1);
+    _update_stored_config(jnetwork, jparams, "auto", 1);
+    _update_stored_config(jnetwork, jparams, "encryption", 1);
 
     if (__save_stored_networks()) {
         nakd_log(L_CRIT, "Couldn't store network credentials for %s", ssid);
