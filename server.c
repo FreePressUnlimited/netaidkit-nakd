@@ -180,8 +180,9 @@ static int _message_loop(struct connection *conn) {
             jrstr = json_object_to_json_string_ext(jresponse,
                                     JSON_C_TO_STRING_PRETTY);
 
-            while (nb_resp = strlen(jrstr)) {
-                nb_sent = sendto(conn->sockfd, jrstr, nb_resp, 0,
+            const char *jrstrp = jrstr;
+            while (nb_resp = strlen(jrstrp)) {
+                nb_sent = sendto(conn->sockfd, jrstrp, nb_resp, 0,
                               (struct sockaddr *) &client_addr,
                                                    client_len);
                 if (nb_sent == -1) {
@@ -194,7 +195,7 @@ static int _message_loop(struct connection *conn) {
                     rval = 1;
                     goto ret;
                 }
-                jrstr += nb_sent;
+                jrstrp += nb_sent;
             }
 
             nakd_log(L_DEBUG, "Response sent: %s", jrstr);
