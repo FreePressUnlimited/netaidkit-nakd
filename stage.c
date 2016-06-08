@@ -243,7 +243,7 @@ static struct stage *_stages[] = {
 
 static struct led_condition _led_stage_working = {
     .name = "stage-working",
-    .priority = LED_PRIORITY_DEFAULT,
+    .priority = LED_PRIORITY_NOTIFICATION,
     .states = (struct led_state[]){
         { "LED1_path", NULL, 1 },
         { "LED2_path", NULL, 1 },
