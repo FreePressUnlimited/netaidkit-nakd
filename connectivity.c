@@ -68,8 +68,10 @@ static void _connectivity_update(void *priv) {
     nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
     json_object *jcurrent = nakd_wlan_current();
     const char *current_ssid = NULL;
-    if (jcurrent != NULL)
+    if (jcurrent != NULL) {
         current_ssid = nakd_net_ssid(jcurrent);
+        json_object_put(jcurrent);
+    }
 
     int wan_disabled = nakd_interface_disabled(NAKD_WLAN);
     if (wan_disabled == -1) {
