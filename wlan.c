@@ -299,10 +299,12 @@ json_object *nakd_wlan_candidate(void) {
     if (nakd_config_key_int("wlan_autoconnect", &autoconnect))
         autoconnect = 0;
 
-    if (autoconnect)
+    if (autoconnect) {
         jnetwork = __choose_network();
-    else
+        json_object_get(jnetwork);
+    } else {
         nakd_log(L_DEBUG, "Autoconnect disabled.");
+    }
 
     pthread_mutex_unlock(&_wlan_mutex);
     return jnetwork;
@@ -753,6 +755,9 @@ static int _configure_ap(json_object *jnetwork) {
 }
 
 int nakd_wlan_connect(json_object *jnetwork) {
+    if (nakd_wlan_connecting())
+        return 0;
+
     pthread_mutex_lock(&_wlan_connecting_mutex);
     _connecting = 1;
     pthread_mutex_unlock(&_wlan_connecting_mutex);

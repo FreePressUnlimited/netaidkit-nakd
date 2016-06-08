@@ -127,6 +127,7 @@ static void _connectivity_update(void *priv) {
         nakd_log(L_INFO, "Wireless connection configured, ssid: \"%s\"", ssid);
         nakd_event_push(CONNECTIVITY_OK);
     }
+    json_object_put(jnetwork);
 
 unlock:
     pthread_mutex_unlock(&_connectivity_mutex);
