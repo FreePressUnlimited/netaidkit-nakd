@@ -470,6 +470,19 @@ json_object *cmd_stage_set(json_object *jcmd, void *param) {
     nakd_log_execution_point();
     nakd_assert(jcmd != NULL);
 
+    pthread_mutex_lock(&_stage_status_mutex);
+    int busy = _requested_stage != NULL;
+    const char *requested_name;
+    if (busy)
+        requested_name = _requested_stage->name;
+    pthread_mutex_unlock(&_stage_status_mutex);
+    if (busy) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+                   "Invalid request - already switching to %s stage.",
+                                                      requested_name);
+        goto response;
+    }
+
     json_object *jparams = nakd_jsonrpc_params(jcmd);
     if (jparams == NULL || json_object_get_type(jparams) != json_type_string) {
         nakd_log(L_NOTICE, "Couldn't get stage parameter");
