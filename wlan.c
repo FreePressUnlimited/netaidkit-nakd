@@ -166,6 +166,7 @@ static void __remove_stored_network(const char *ssid) {
             continue;
         }
 
+        json_object_get(jnetwork);
         json_object_array_add(jupdated, jnetwork);
     } 
 
