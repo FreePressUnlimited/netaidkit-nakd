@@ -338,8 +338,13 @@ static void _stage_spec(void *priv) {
     pthread_mutex_lock(&_stage_change_mutex);
     nakd_led_condition_add(&_led_stage_working);
 
-    if (_requested_stage == NULL || _current_stage == _requested_stage)
+    pthread_mutex_lock(&_stage_status_mutex);
+    if (_requested_stage == NULL || _current_stage == _requested_stage) {
+        _requested_stage = NULL;
+        pthread_mutex_unlock(&_stage_status_mutex);
         goto unlock;
+    }
+    pthread_mutex_unlock(&_stage_status_mutex);
 
     pthread_mutex_lock(&_stage_status_mutex);
     __clear_stage_status();
