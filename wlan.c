@@ -40,6 +40,9 @@ static json_object *_stored_networks;
 static json_object *_current_network;
 time_t _connected_timestamp;
 
+int _connecting;
+static pthread_mutex_t _wlan_connecting_mutex;
+
 int nakd_wlan_connection_uptime(void) {
     int uptime;
     pthread_mutex_lock(&_wlan_mutex);
@@ -750,10 +753,25 @@ static int _configure_ap(json_object *jnetwork) {
 }
 
 int nakd_wlan_connect(json_object *jnetwork) {
+    pthread_mutex_lock(&_wlan_connecting_mutex);
+    _connecting = 1;
+    pthread_mutex_unlock(&_wlan_connecting_mutex);
+
     pthread_mutex_lock(&_wlan_mutex);
     int status = _wlan_connect(jnetwork);
     pthread_mutex_unlock(&_wlan_mutex);
+
+    pthread_mutex_lock(&_wlan_connecting_mutex);
+    _connecting = 0;
+    pthread_mutex_unlock(&_wlan_connecting_mutex);
     return status;
+}
+
+int nakd_wlan_connecting(void) {
+    pthread_mutex_lock(&_wlan_connecting_mutex);
+    int connecting = _connecting;
+    pthread_mutex_unlock(&_wlan_connecting_mutex);
+    return connecting;
 }
 
 static int __wlan_disconnect(void) {
@@ -776,6 +794,8 @@ int nakd_wlan_disconnect(void) {
 
 static int _wlan_init(void) {
     pthread_mutex_init(&_wlan_mutex, NULL);
+    pthread_mutex_init(&_wlan_connecting_mutex, NULL);
+
     if ((_wlan_interface_name = nakd_interface_name(NAKD_WLAN)) == NULL) {
         nakd_log(L_WARNING, "Couldn't get %s interface name from UCI, "
                      "continuing with default " WLAN_DEFAULT_INTERFACE,
@@ -805,6 +825,7 @@ static int _wlan_init(void) {
 static int _wlan_cleanup(void) {
     __cleanup_stored_networks();
     pthread_mutex_destroy(&_wlan_mutex);
+    pthread_mutex_destroy(&_wlan_connecting_mutex);
     return 0;
 }
 

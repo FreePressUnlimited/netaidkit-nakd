@@ -57,6 +57,12 @@ static char *_gateway_ip(void) {
 static void _connectivity_update(void *priv) {
     pthread_mutex_lock(&_connectivity_mutex);
 
+    if (nakd_wlan_connecting()) {
+        nakd_log(L_DEBUG, "Connecting to wireless network, connectivity update"
+                                                                  " skipped.");
+        goto unlock;
+    }
+
     /* prefer ethernet */
     if (_ethernet_wan_available() != 0) {
         if (!nakd_interface_disabled(NAKD_WLAN))
