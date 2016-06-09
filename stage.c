@@ -82,7 +82,7 @@ static struct stage _stage_reset = {
     .connectivity_level = CONNECTIVITY_NONE,
     .led = {
         .name = "stage_reset",
-        .priority = LED_PRIORITY_NOTIFICATION,
+        .priority = LED_PRIORITY_MODE,
         .states = (struct led_state[]){
             { "LED1_path", NULL, 1 },
             { "LED2_path", NULL, 1 },
@@ -117,7 +117,7 @@ static struct stage _stage_offline = {
     .connectivity_level = CONNECTIVITY_NONE,
     .led = {
         .name = "stage_offline",
-        .priority = LED_PRIORITY_NOTIFICATION,
+        .priority = LED_PRIORITY_MODE,
         .states = (struct led_state[]){
             { "LED1_path", NULL, 1 },
             { "LED2_path", NULL, 1 },
@@ -152,7 +152,7 @@ static struct stage _stage_vpn = {
     .connectivity_level = CONNECTIVITY_LOCAL,
     .led = {
         .name = "stage_vpn",
-        .priority = LED_PRIORITY_NOTIFICATION,
+        .priority = LED_PRIORITY_MODE,
         .states = (struct led_state[]){
             { "LED1_path", NULL, 1 },
             { "LED2_path", NULL, 0 },
@@ -187,7 +187,7 @@ static struct stage _stage_tor = {
     .connectivity_level = CONNECTIVITY_LOCAL,
     .led = {
         .name = "stage_tor",
-        .priority = LED_PRIORITY_NOTIFICATION,
+        .priority = LED_PRIORITY_MODE,
         .states = (struct led_state[]){
             { "LED1_path", NULL, 1 },
             { "LED2_path", NULL, 0 },
@@ -222,7 +222,7 @@ static struct stage _stage_online = {
     .connectivity_level = CONNECTIVITY_LOCAL,
     .led = {
         .name = "stage_online",
-        .priority = LED_PRIORITY_NOTIFICATION,
+        .priority = LED_PRIORITY_MODE,
         .states = (struct led_state[]){
             { "LED1_path", NULL, 0 },
             { "LED2_path", NULL, 1 },
