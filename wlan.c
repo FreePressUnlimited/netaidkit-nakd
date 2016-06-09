@@ -40,8 +40,9 @@ static json_object *_stored_networks;
 static json_object *_current_network;
 time_t _connected_timestamp;
 
-int _connecting;
-static pthread_mutex_t _wlan_connecting_mutex;
+static int _connecting;
+static json_object *_requested_wlan;
+static pthread_mutex_t _wlan_status_mutex;
 
 int nakd_wlan_connection_uptime(void) {
     int uptime;
@@ -759,25 +760,35 @@ int nakd_wlan_connect(json_object *jnetwork) {
     if (nakd_wlan_connecting())
         return 0;
 
-    pthread_mutex_lock(&_wlan_connecting_mutex);
+    pthread_mutex_lock(&_wlan_status_mutex);
     _connecting = 1;
-    pthread_mutex_unlock(&_wlan_connecting_mutex);
+    _requested_wlan = jnetwork, json_object_get(_requested_wlan);
+    pthread_mutex_unlock(&_wlan_status_mutex);
 
     pthread_mutex_lock(&_wlan_mutex);
     int status = _wlan_connect(jnetwork);
     pthread_mutex_unlock(&_wlan_mutex);
 
-    pthread_mutex_lock(&_wlan_connecting_mutex);
+    pthread_mutex_lock(&_wlan_status_mutex);
     _connecting = 0;
-    pthread_mutex_unlock(&_wlan_connecting_mutex);
+    json_object_put(_requested_wlan), _requested_wlan = NULL;
+    pthread_mutex_unlock(&_wlan_status_mutex);
     return status;
 }
 
 int nakd_wlan_connecting(void) {
-    pthread_mutex_lock(&_wlan_connecting_mutex);
+    pthread_mutex_lock(&_wlan_status_mutex);
     int connecting = _connecting;
-    pthread_mutex_unlock(&_wlan_connecting_mutex);
+    pthread_mutex_unlock(&_wlan_status_mutex);
     return connecting;
+}
+
+json_object *nakd_wlan_requested(void) {
+    pthread_mutex_lock(&_wlan_status_mutex);
+    json_object *requested = _requested_wlan;
+    json_object_get(requested);
+    pthread_mutex_unlock(&_wlan_status_mutex);
+    return requested;
 }
 
 static int __wlan_disconnect(void) {
@@ -800,7 +811,7 @@ int nakd_wlan_disconnect(void) {
 
 static int _wlan_init(void) {
     pthread_mutex_init(&_wlan_mutex, NULL);
-    pthread_mutex_init(&_wlan_connecting_mutex, NULL);
+    pthread_mutex_init(&_wlan_status_mutex, NULL);
 
     if ((_wlan_interface_name = nakd_interface_name(NAKD_WLAN)) == NULL) {
         nakd_log(L_WARNING, "Couldn't get %s interface name from UCI, "
@@ -831,7 +842,7 @@ static int _wlan_init(void) {
 static int _wlan_cleanup(void) {
     __cleanup_stored_networks();
     pthread_mutex_destroy(&_wlan_mutex);
-    pthread_mutex_destroy(&_wlan_connecting_mutex);
+    pthread_mutex_destroy(&_wlan_status_mutex);
     return 0;
 }
 
@@ -1266,6 +1277,17 @@ unlock:
     return jresponse;
 }
 
+json_object *cmd_wlan_connecting(json_object *jcmd, void *arg) {
+    json_object *jresult = json_object_new_object();
+    json_object *jnetwork = nakd_wlan_requested();
+    json_object *jconnecting = json_object_new_int(jnetwork != NULL);
+    json_object_object_add(jresult, "connecting", jconnecting);
+    if (jnetwork != NULL)
+        json_object_object_add(jresult, "network", jnetwork);
+
+    return nakd_jsonrpc_response_success(jcmd, jresult);
+}
+
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "config", "uci", "ubus", "netintf", "workqueue",
@@ -1396,3 +1418,15 @@ static struct nakd_command wlan_disconnect = {
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_disconnect);
+
+static struct nakd_command wlan_connecting = {
+    .name = "wlan_connecting",
+    .desc = "Returns network NAK is currently connecting to in form "
+                        "{\"connecting\": true, \"network\": {...}}",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_connecting\","
+                                                       " \"id\": 42}",
+    .handler = cmd_wlan_connecting,
+    .access = ACCESS_USER,
+    .module = &module_wlan
+};
+NAKD_DECLARE_COMMAND(wlan_connecting);
