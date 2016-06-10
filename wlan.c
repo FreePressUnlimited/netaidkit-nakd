@@ -809,7 +809,10 @@ int nakd_wlan_connecting(void) {
 }
 
 int nakd_wlan_connected(void) {
-    return !nakd_interface_disabled(NAKD_WLAN);
+    int disabled = nakd_interface_disabled(NAKD_WLAN);
+    if (disabled == -1)
+        return -1;
+    return !disabled;
 }
 
 json_object *nakd_wlan_requested(void) {

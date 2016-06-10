@@ -40,11 +40,18 @@ static int _ethernet_wan_available(void) {
     return 0;
 }
 
-static int _arping_gateway(void) {
+static int _arping_gateway(enum nakd_interface intf) {
     int status;
+
+    char *interface_name = nakd_interface_name(intf);
+    if (interface_name == NULL) {
+        nakd_log(L_CRIT, "No interface name for %s.", intf);
+        return -1;
+    }
+
     nakd_assert((status = nakd_shell_exec(NAKD_SCRIPT_PATH,
                               NULL, GW_ARPING_SCRIPT " %s",
-                              nakd_wlan_interface_name())) >= 0);
+                                    interface_name)) >= 0);
     return status;
 }
 
@@ -79,11 +86,11 @@ static void _connectivity_update(void *priv) {
         json_object_put(jcurrent);
     }
 
-    int wan_disabled = nakd_interface_disabled(NAKD_WLAN);
-    if (wan_disabled == -1) {
+    int wlan_connected = nakd_wlan_connected();
+    if (wlan_connected == -1) {
         nakd_log(L_CRIT, "Can't query WLAN interface UCI configuration.");
         goto unlock;
-    } else if (!wan_disabled) {
+    } else if (wlan_connected) {
         /* check if the network is still in range */
         if (current_ssid == NULL || !nakd_wlan_in_range(current_ssid)) {
             nakd_log(L_INFO, "\"%s\" WLAN is no longer in range.",
@@ -100,7 +107,7 @@ static void _connectivity_update(void *priv) {
                        " arp-pinging the default gateway: %s",
                                          current_ssid, gw_ip);
             free(gw_ip);
-            if (!_arping_gateway()) {
+            if (!_arping_gateway(NAKD_WLAN)) {
                 nakd_log(L_DEBUG, "Gateway responsive.");
                 goto unlock;
             } else {
@@ -116,7 +123,7 @@ static void _connectivity_update(void *priv) {
     json_object *jnetwork = nakd_wlan_candidate();
     if (jnetwork == NULL) {
         nakd_log(L_INFO, "No available known wireless networks");
-        if (!wan_disabled)
+        if (wlan_connected)
             nakd_event_push(CONNECTIVITY_LOST);
         goto unlock;
     } 
@@ -180,7 +187,8 @@ static int _run_connectivity_scripts(const char *dirpath) {
 }
 
 int nakd_local_connectivity(void) {
-    return !_arping_gateway();
+    enum nakd_interface intf = nakd_wlan_connected() ? NAKD_WLAN : NAKD_WAN;
+    return !_arping_gateway(intf);
 }
 
 int nakd_internet_connectivity(void) {
