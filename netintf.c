@@ -38,6 +38,14 @@ const char *nakd_interface_type[] = {
     [NAKD_AP] = "AP"
 };
 
+const char *nakd_interface_default[] = {
+    [INTF_UNSPECIFIED] = NULL,
+    [NAKD_LAN] = "eth1",
+    [NAKD_WAN] = "eth0",
+    [NAKD_WLAN] = "wlan0",
+    [NAKD_AP] = "wlan1"
+};
+
 static json_object *_previous_netintf_state = NULL;
 static json_object *_current_netintf_state = NULL;
 static struct nakd_timer *_netintf_update_timer;
@@ -214,17 +222,19 @@ static int __carrier_present(const char *intf) {
     return json_object_get_boolean(jcarrier);
 }
 
-static char *__interface_name(enum nakd_interface id) {
+static const char *__interface_name(enum nakd_interface id) {
     for (struct interface *intf = _interfaces; intf->id; intf++) {
         if (intf->id == id)
             return intf->name;
     }
-    return NULL;
+    nakd_log(L_WARNING, "Returning default interface name for %s",
+                                         nakd_interface_type[id]);
+    return nakd_interface_default[id];
 }
 
-char *nakd_interface_name(enum nakd_interface id) {
+const char *nakd_interface_name(enum nakd_interface id) {
     pthread_mutex_lock(&_netintf_mutex);
-    char *name = __interface_name(id);
+    const char *name = __interface_name(id);
     pthread_mutex_unlock(&_netintf_mutex);
     return name;
 }
@@ -233,7 +243,7 @@ int nakd_carrier_present(enum nakd_interface id) {
     int status = 1;
 
     pthread_mutex_lock(&_netintf_mutex);
-    char *intf_name = __interface_name(id);
+    const char *intf_name = __interface_name(id);
     if (intf_name == NULL) {
         nakd_log(L_CRIT, "There's no interface with id %s",
                                   nakd_interface_type[id]);

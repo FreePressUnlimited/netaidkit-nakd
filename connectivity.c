@@ -43,15 +43,9 @@ static int _ethernet_wan_available(void) {
 static int _arping_gateway(enum nakd_interface intf) {
     int status;
 
-    char *interface_name = nakd_interface_name(intf);
-    if (interface_name == NULL) {
-        nakd_log(L_CRIT, "No interface name for %s.", intf);
-        return -1;
-    }
-
     nakd_assert((status = nakd_shell_exec(NAKD_SCRIPT_PATH,
                               NULL, GW_ARPING_SCRIPT " %s",
-                                    interface_name)) >= 0);
+                         nakd_interface_name(intf))) >= 0);
     return status;
 }
 
