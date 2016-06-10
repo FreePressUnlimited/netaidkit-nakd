@@ -18,6 +18,7 @@
 #include "iwinfo_cli.h"
 #include "config.h"
 #include "led.h"
+#include "misc.h"
 
 #define WLAN_NETWORK_LIST_PATH "/etc/nakd/wireless_networks"
 
@@ -53,7 +54,7 @@ int nakd_wlan_connection_uptime(void) {
     int uptime;
     pthread_mutex_lock(&_wlan_mutex);
     if (_connected_timestamp)
-        uptime = time(NULL) - _connected_timestamp + 1;
+        uptime = monotonic_time() - _connected_timestamp + 1;
     else
         uptime = 0;
     pthread_mutex_unlock(&_wlan_mutex);
@@ -352,7 +353,7 @@ static void _wlan_update_cb(struct ubus_request *req, int type,
     if (_wireless_networks != NULL)
         json_object_put(_wireless_networks);
     _wireless_networks = jstate;
-    _last_scan = time(NULL);
+    _last_scan = monotonic_time();
     pthread_mutex_unlock(&_wlan_mutex);
 
     nakd_log(L_INFO, "Updated wireless network list. Available networks: %d",
@@ -498,7 +499,7 @@ static void _wlan_scan_iwinfo_work(void *priv) {
     if (_wireless_networks != NULL)
         json_object_put(_wireless_networks);
     _wireless_networks = jresults;
-    _last_scan = time(NULL);
+    _last_scan = monotonic_time();
 } 
 
 static void _cleanup_iwinfo_scan(struct iwinfo_scan_priv *scan) {
@@ -721,7 +722,7 @@ static int _wlan_connect(json_object *jnetwork) {
     pthread_mutex_unlock(&_wlan_config_mutex);
 
     __swap_current_network(jnetwork);
-    _connected_timestamp = time(NULL);
+    _connected_timestamp = monotonic_time();
     return _reload_wireless_config();
 }
 
@@ -924,7 +925,8 @@ json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
 
     json_object *jresult = json_object_new_object();
     json_object *jnetcount = json_object_new_int(netcount);
-    json_object *jlastscan = json_object_new_int(_last_scan);
+    json_object *jlastscan = json_object_new_int(monotonic_time()
+                                                   - _last_scan);
     json_object_object_add(jresult, "netcount", jnetcount);
     json_object_object_add(jresult, "last_scan", jlastscan);
 

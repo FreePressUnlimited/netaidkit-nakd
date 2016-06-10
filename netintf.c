@@ -360,7 +360,7 @@ void nakd_netintf_disable_updates(int seconds) {
     pthread_mutex_lock(&_netintf_mutex);
     _netintf_updates_disabled = 1;
     if (seconds)
-        _netintf_updates_timeout = time(NULL) + seconds;
+        _netintf_updates_timeout = monotonic_time() + seconds;
     else
         _netintf_updates_timeout = 0;
     pthread_mutex_unlock(&_netintf_mutex);
@@ -378,7 +378,7 @@ static void _netintf_update(void *priv) {
     pthread_mutex_lock(&_netintf_mutex);
     if (_netintf_updates_disabled) {
         if (_netintf_updates_timeout) {
-            if (time(NULL) > _netintf_updates_timeout)
+            if (monotonic_time() > _netintf_updates_timeout)
                 _netintf_updates_disabled = 0;
         }
     }
