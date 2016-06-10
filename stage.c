@@ -333,8 +333,6 @@ static int _run_uci_hooks(struct stage *stage) {
 }
 
 static void _stage_spec(void *priv) {
-    struct stage *stage = *(struct stage **)(priv);
-
     pthread_mutex_lock(&_stage_change_mutex);
     nakd_led_condition_add(&_led_stage_working);
 
@@ -351,48 +349,51 @@ static void _stage_spec(void *priv) {
     pthread_mutex_unlock(&_stage_status_mutex);
 
     enum nakd_connectivity current_connectivity = nakd_connectivity();
-    if ((int)(current_connectivity) < (int)(stage->connectivity_level)) {
-
+    enum nakd_connectivity needed_connectivity =
+                _requested_stage->connectivity_level;
+    if ((int)(current_connectivity) < (int)(needed_connectivity)) {
         nakd_log(L_INFO, "Insufficient connectivity level for stage %s. "
-          "(current: %s, required: %s) - change postponed.", stage->name,
+                       "(current: %s, required: %s) - change postponed.",
+                                                  _requested_stage->name,
                    nakd_connectivity_string[(int)(current_connectivity)],
-             nakd_connectivity_string[(int)(stage->connectivity_level)]);
+                   nakd_connectivity_string[(int)(needed_connectivity)]);
+
         pthread_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Insufficient connectivity level.";
         pthread_mutex_unlock(&_stage_status_mutex);
         goto unlock;
     }
 
-    nakd_log(L_INFO, "Stage %s", stage->name);
+    nakd_log(L_INFO, "Stage %s", _requested_stage->name);
     struct stage *previous = _current_stage;
 
     pthread_mutex_lock(&_stage_status_mutex);
-    _stage_status.step_count = _step_count(stage);
+    _stage_status.step_count = _step_count(_requested_stage);
     pthread_mutex_unlock(&_stage_status_mutex);
-    for (const struct stage_step *step = stage->work; step->name != NULL;
-                                                                step++) {
+    for (const struct stage_step *step = _requested_stage->work;
+                                   step->name != NULL; step++) {
         pthread_mutex_lock(&_stage_status_mutex);
         _stage_status.step++;
         _stage_status.step_name = step->name;
         pthread_mutex_unlock(&_stage_status_mutex);
 
-        nakd_log(L_INFO, "Stage %s step: %s (%d/%d)", stage->name, step->name,
-                                _stage_status.step, _stage_status.step_count);
-        if (step->work(stage))
+        nakd_log(L_INFO, "Stage %s step: %s (%d/%d)", _requested_stage->name,
+                   step->name, _stage_status.step, _stage_status.step_count);
+        if (step->work(_requested_stage))
             goto unlock;
     }
 
     pthread_mutex_lock(&_stage_status_mutex);
-    _current_stage = stage;
+    _current_stage = _requested_stage;
     _requested_stage = NULL;
     pthread_mutex_unlock(&_stage_status_mutex);
-    nakd_log(L_INFO, "Stage %s: done!", stage->name);
+    nakd_log(L_INFO, "Stage %s: done!", _current_stage->name);
 
     _clear_stage_status();
 
     if (previous != NULL)
         nakd_led_condition_remove(previous->led.name);
-    nakd_led_condition_add(&stage->led);
+    nakd_led_condition_add(&_current_stage->led);
 
 unlock:
     nakd_led_condition_remove(_led_stage_working.name);
@@ -425,19 +426,22 @@ static int _stage_init(void) {
     pthread_mutex_init(&_stage_change_mutex, NULL);
     pthread_mutex_init(&_stage_status_mutex, NULL);
 
-    char *config_stage;
-    nakd_config_key("stage", &config_stage);
-    nakd_assert((_requested_stage = _get_stage(config_stage)) != NULL);
+    nakd_stage_spec_synch(&_stage_offline, 0);
+
+    char *config_stage_name = NULL;
+    if (!nakd_config_key("stage", &config_stage_name)) {
+        struct stage *config_stage = _get_stage(config_stage_name);
+        if (config_stage != NULL) {
+            nakd_stage_spec_synch(config_stage, 0);
+        } else {
+            nakd_log(L_WARNING, "Misconfigured stage: %s, skipping.",
+                                                  config_stage_name);
+        }
+    }
 
     /* retry automatically */
     _stage_update_timer = nakd_timer_add(STAGE_UPDATE_INTERVAL,
                                        _stage_update_cb, NULL);
-
-    /* synchronous set - call workqueue work def */
-    void *wq_arg = &_stage_offline;
-    _stage_spec(&wq_arg);
-    /* asynchronous set */
-    nakd_stage_spec(_requested_stage, 0);
     return 0;
 }
 
@@ -448,9 +452,7 @@ static int _stage_cleanup(void) {
     return 0;
 }
 
-void nakd_stage_spec(struct stage *stage, int save) {
-    _clear_stage_status();
-
+static int _stage_spec_update_requested(struct stage *stage, int save) {
     pthread_mutex_lock(&_stage_change_mutex);
     pthread_mutex_lock(&_stage_status_mutex);
     _requested_stage = stage;
@@ -458,9 +460,21 @@ void nakd_stage_spec(struct stage *stage, int save) {
         nakd_config_set("stage", stage->name);
     pthread_mutex_unlock(&_stage_status_mutex);
     pthread_mutex_unlock(&_stage_change_mutex);
+}
+
+void nakd_stage_spec(struct stage *stage, int save) {
+    _clear_stage_status();
+    _stage_spec_update_requested(stage, save);
 
     struct work *stage_wq_entry = nakd_alloc_work(&_stage_work_desc);
     nakd_workqueue_add(nakd_wq, stage_wq_entry);
+}
+
+void nakd_stage_spec_synch(struct stage *stage, int save) {
+    _clear_stage_status();
+    _stage_spec_update_requested(stage, save);
+
+    _stage_spec(NULL);
 }
 
 int nakd_stage(const char *stage_name) {
