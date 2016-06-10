@@ -433,7 +433,11 @@ static int _stage_init(void) {
     _stage_update_timer = nakd_timer_add(STAGE_UPDATE_INTERVAL,
                                        _stage_update_cb, NULL);
 
-    nakd_stage_spec(_requested_stage);
+    /* synchronous set - call workqueue work def */
+    void *wq_arg = &_stage_offline;
+    _stage_spec(&wq_arg);
+    /* asynchronous set */
+    nakd_stage_spec(_requested_stage, 0);
     return 0;
 }
 
@@ -444,13 +448,14 @@ static int _stage_cleanup(void) {
     return 0;
 }
 
-void nakd_stage_spec(struct stage *stage) {
+void nakd_stage_spec(struct stage *stage, int save) {
     _clear_stage_status();
 
     pthread_mutex_lock(&_stage_change_mutex);
     pthread_mutex_lock(&_stage_status_mutex);
     _requested_stage = stage;
-    nakd_config_set("stage", stage->name);
+    if (save)
+        nakd_config_set("stage", stage->name);
     pthread_mutex_unlock(&_stage_status_mutex);
     pthread_mutex_unlock(&_stage_change_mutex);
 
@@ -465,7 +470,7 @@ int nakd_stage(const char *stage_name) {
         return 1;
     }
 
-    nakd_stage_spec(stage);
+    nakd_stage_spec(stage, 1);
     return 0;
 }
 
@@ -597,7 +602,7 @@ json_object *cmd_stage_list(json_object *jcmd, void *param) {
 static struct nakd_module module_stage = {
     .name = "stage",
     .deps = (const char *[]){ "workqueue", "connectivity", "notification",
-                                                "timer", "config", NULL },
+                                  "timer", "config", "uci", "led", NULL },
     .init = _stage_init,
     .cleanup = _stage_cleanup
 };

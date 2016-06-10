@@ -27,7 +27,7 @@ struct stage {
 
 json_object *cmd_stage_set(json_object *jcmd, void *param);
 
-void nakd_stage_spec(struct stage *stage);
+void nakd_stage_spec(struct stage *stage, int save);
 int nakd_stage(const char *stage_name);
 
 #endif
