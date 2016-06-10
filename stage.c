@@ -546,7 +546,7 @@ static json_object *__desc_stage(struct stage *stage) {
 
     json_object_object_add(jresult, "name", jname);
     json_object_object_add(jresult, "desc", jdesc);
-    json_object_object_add(jresult, "connectivity", jconnectivity);
+    json_object_object_add(jresult, "required_connectivity", jconnectivity);
     return jresult;
 }
 
