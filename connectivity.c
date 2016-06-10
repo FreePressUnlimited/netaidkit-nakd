@@ -65,8 +65,8 @@ static void _connectivity_update(void *priv) {
 
     /* prefer ethernet */
     if (_ethernet_wan_available() != 0) {
-        if (!nakd_interface_disabled(NAKD_WLAN))
-            nakd_disable_interface(NAKD_WLAN);
+        if (nakd_wlan_connected())
+            nakd_wlan_disconnect();
         goto unlock; 
     }
 

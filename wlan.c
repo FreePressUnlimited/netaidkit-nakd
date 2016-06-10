@@ -38,6 +38,8 @@ static json_object *_wireless_networks;
 static time_t _last_scan;
 
 static json_object *_stored_networks;
+
+/* TODO remove, get current config from UCI? */
 static json_object *_current_network;
 time_t _connected_timestamp;
 
@@ -804,6 +806,10 @@ int nakd_wlan_connecting(void) {
     int connecting = _connecting;
     pthread_mutex_unlock(&_wlan_status_mutex);
     return connecting;
+}
+
+int nakd_wlan_connected(void) {
+    return !nakd_interface_disabled(NAKD_WLAN);
 }
 
 json_object *nakd_wlan_requested(void) {
