@@ -246,9 +246,21 @@ response:
 }
 
 int nakd_start_openvpn() {
-    char * const *argv = _access_auth_file() ? _argv : _argv_auth;
-
     nakd_log_execution_point();
+
+    if (_access_config_file()) {
+        nakd_log(L_CRIT, "Can't access OpenVPN config file at " CONFIG_PATH);
+        return -1;
+    }
+
+    char * const *argv;
+    if (_access_auth_file()) {
+        nakd_log(L_INFO, "No OpenVPN auth file found.");
+        argv = _argv;
+    } else {
+        nakd_log(L_INFO, "Using OpenVPN auth file at " AUTH_PATH);
+        argv = _argv_auth;
+    }
 
     int pid = fork();
     nakd_assert(pid >= 0);
