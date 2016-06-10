@@ -45,6 +45,8 @@ static int _connecting;
 static json_object *_requested_wlan;
 static pthread_mutex_t _wlan_status_mutex;
 
+static pthread_mutex_t _wlan_config_mutex;
+
 int nakd_wlan_connection_uptime(void) {
     int uptime;
     pthread_mutex_lock(&_wlan_mutex);
@@ -708,11 +710,13 @@ static int _wlan_connect(json_object *jnetwork) {
     nakd_log(L_INFO, "Connecting to \"%s\" wireless network.", ssid);
     nakd_log(L_INFO, "Updating WLAN configuration.");
 
+    pthread_mutex_lock(&_wlan_config_mutex);
     /* Continue if exactly one UCI section was found and updated. */
     if (nakd_update_iface_config(NAKD_WLAN, _update_wlan_config_ssid,
                                                     jnetwork) != 1) {
         return 1;
     }
+    pthread_mutex_unlock(&_wlan_config_mutex);
 
     __swap_current_network(jnetwork);
     _connected_timestamp = time(NULL);
@@ -748,12 +752,14 @@ static void _configure_ap_work(void *priv) {
     json_object *jnetwork = priv;
 
     pthread_mutex_lock(&_wlan_mutex);
+    pthread_mutex_lock(&_wlan_config_mutex);
     /* Continue if exactly one UCI section was found and updated. */
     if (nakd_update_iface_config(NAKD_AP, _update_wlan_config_ssid,
                                                   jnetwork) != 1) {
         nakd_log(L_CRIT, "Couldn't configure Access Point.");
         goto unlock;
     }
+    pthread_mutex_unlock(&_wlan_config_mutex);
     _reload_wireless_config();
 
 unlock:
@@ -829,6 +835,7 @@ int nakd_wlan_disconnect(void) {
 static int _wlan_init(void) {
     pthread_mutex_init(&_wlan_mutex, NULL);
     pthread_mutex_init(&_wlan_status_mutex, NULL);
+    pthread_mutex_init(&_wlan_config_mutex, NULL);
 
     if ((_wlan_interface_name = nakd_interface_name(NAKD_WLAN)) == NULL) {
         nakd_log(L_WARNING, "Couldn't get %s interface name from UCI, "
@@ -860,6 +867,7 @@ static int _wlan_cleanup(void) {
     __cleanup_stored_networks();
     pthread_mutex_destroy(&_wlan_mutex);
     pthread_mutex_destroy(&_wlan_status_mutex);
+    pthread_mutex_destroy(&_wlan_config_mutex);
     return 0;
 }
 
@@ -1101,7 +1109,7 @@ json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
     json_object *jresponse;
     json_object *jparams;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    pthread_mutex_lock(&_wlan_config_mutex);
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_string) {
@@ -1129,7 +1137,7 @@ params:
            "Invalid request - params should be a string; \"WLAN\""
                                 "and \"AP\" interfaces allowed.");
 unlock:
-    pthread_mutex_unlock(&_wlan_mutex);
+    pthread_mutex_unlock(&_wlan_config_mutex);
     return jresponse;
 }
 
