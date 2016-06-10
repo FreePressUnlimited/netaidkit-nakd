@@ -17,6 +17,7 @@
 #include "event.h"
 #include "iwinfo_cli.h"
 #include "config.h"
+#include "led.h"
 
 #define WLAN_NETWORK_LIST_PATH "/etc/nakd/wireless_networks"
 
@@ -523,9 +524,24 @@ static struct work_desc _iwinfo_scan_desc = {
     .priv = &_iwinfo_scan_priv
 };
 
+static struct led_condition _led_scan_working = {
+    .name = "wlan scan-working",
+    .priority = LED_PRIORITY_NOTIFICATION,
+    .states = (struct led_state[]){
+        { "LED1_path", NULL, 1 },
+        { "LED2_path", NULL, 1 },
+        {}
+    },
+    .blink.on = 1,
+    .blink.interval = 100,
+    .blink.count = -1, /*infinite */
+};
+
 static int _wlan_scan_iwinfo(void) {
     int status;
     struct work *scan_wq_entry = nakd_alloc_work(&_iwinfo_scan_desc);
+
+    nakd_led_condition_add(&_led_scan_working);
 
     pthread_mutex_lock(&_wlan_mutex);
     nakd_workqueue_add(nakd_wq, scan_wq_entry);
@@ -540,6 +556,7 @@ static int _wlan_scan_iwinfo(void) {
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
     nakd_free_work(scan_wq_entry);
+    nakd_led_condition_remove(_led_scan_working.name);
     return status;
 }
 
@@ -1291,7 +1308,7 @@ json_object *cmd_wlan_connecting(json_object *jcmd, void *arg) {
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "config", "uci", "ubus", "netintf", "workqueue",
-                                                                       NULL },
+                                                "notification", "led", NULL },
     .init = _wlan_init,
     .cleanup = _wlan_cleanup 
 };
