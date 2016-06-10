@@ -25,6 +25,10 @@
 static pthread_mutex_t _connectivity_mutex;
 static struct nakd_timer *_connectivity_update_timer;
 
+static int _connectivity_local;
+static int _connectivity_internet;
+static pthread_mutex_t _connectivity_status_mutex;
+
 #define CONNECTIVITY_STRING_ENTRY(state) [state] = #state
 const char *nakd_connectivity_string[] = {
     CONNECTIVITY_STRING_ENTRY(CONNECTIVITY_NONE),
@@ -53,6 +57,13 @@ static char *_gateway_ip(void) {
     char *ip = NULL;
     nakd_assert(nakd_shell_exec(NAKD_SCRIPT_PATH, &ip, GW_IP_SCRIPT) >= 0);
     return ip;
+}
+
+static void _update_status(void) {
+    pthread_mutex_lock(&_connectivity_status_mutex);
+    _connectivity_local = nakd_local_connectivity();
+    _connectivity_internet = nakd_internet_connectivity(); 
+    pthread_mutex_unlock(&_connectivity_status_mutex);
 }
 
 static void _connectivity_update(void *priv) {
@@ -133,6 +144,7 @@ static void _connectivity_update(void *priv) {
     json_object_put(jnetwork);
 
 unlock:
+    _update_status();
     pthread_mutex_unlock(&_connectivity_mutex);
 }
 
@@ -155,6 +167,7 @@ static void _connectivity_update_sighandler(siginfo_t *timer_info,
 
 static int _connectivity_init(void) {
     pthread_mutex_init(&_connectivity_mutex, NULL);
+    pthread_mutex_init(&_connectivity_status_mutex, NULL);
     _connectivity_update_timer = nakd_timer_add(CONNECTIVITY_UPDATE_INTERVAL,
                                       _connectivity_update_sighandler, NULL);
 
@@ -167,6 +180,7 @@ static int _connectivity_init(void) {
 
 static int _connectivity_cleanup(void) {
     nakd_timer_remove(_connectivity_update_timer);
+    pthread_mutex_destroy(&_connectivity_status_mutex);
     pthread_mutex_destroy(&_connectivity_mutex);
     return 0;
 }
@@ -215,9 +229,12 @@ json_object *cmd_connectivity(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
     json_object *jresult = json_object_new_object();
-    json_object *jlocal = json_object_new_boolean(nakd_local_connectivity());
-    json_object *jinternet = json_object_new_boolean(
-                       nakd_internet_connectivity());
+
+    pthread_mutex_lock(&_connectivity_status_mutex);
+    json_object *jlocal = json_object_new_boolean(_connectivity_local);
+    json_object *jinternet = json_object_new_boolean(_connectivity_internet);
+    pthread_mutex_unlock(&_connectivity_status_mutex);
+
     json_object_object_add(jresult, "local", jlocal);
     json_object_object_add(jresult, "internet", jinternet);
 
