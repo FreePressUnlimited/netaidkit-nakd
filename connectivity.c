@@ -71,8 +71,6 @@ static void _connectivity_update(void *priv) {
         goto unlock; 
     }
 
-    nakd_wlan_scan();
-    nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
     json_object *jcurrent = nakd_wlan_current();
     const char *current_ssid = NULL;
     if (jcurrent != NULL) {
@@ -114,6 +112,10 @@ static void _connectivity_update(void *priv) {
 
     nakd_log(L_INFO, "No Ethernet or wireless connection, looking for WLAN"
                                                             " candidate.");
+
+    nakd_wlan_scan();
+    nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
+
     json_object *jnetwork = nakd_wlan_candidate();
     if (jnetwork == NULL) {
         nakd_log(L_INFO, "No available known wireless networks");
