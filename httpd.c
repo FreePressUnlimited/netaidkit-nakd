@@ -30,7 +30,7 @@ static int ahc_echo (void *cls,
 
 static struct nakd_module module_httpd = {
     .name = "httpd",
-    .deps = (const char *[]){ "config" },
+    .deps = (const char *[]){ "config", NULL },
     .init = _httpd_init,
     .cleanup = _httpd_cleanup
 };
