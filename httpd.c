@@ -5,11 +5,11 @@
 #include "log.h"
 
 static int _httpd_init(void) {
-
+    return 0;
 }
 
 static int _httpd_cleanup(void) {
-
+    return 0;
 }
 
 static int ahc_echo (void *cls,
