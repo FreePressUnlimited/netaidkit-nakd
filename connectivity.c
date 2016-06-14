@@ -197,8 +197,11 @@ static int _run_connectivity_scripts(const char *dirpath) {
 }
 
 int nakd_local_connectivity(void) {
-    enum nakd_interface intf = nakd_wlan_connected() ? NAKD_WLAN : NAKD_WAN;
-    return !_arping_gateway(intf);
+    if (_ethernet_wan_available())
+        return 1;
+    if (nakd_wlan_connected())
+        return !_arping_gateway(NAKD_WLAN);
+    return 0;
 }
 
 int nakd_internet_connectivity(void) {
