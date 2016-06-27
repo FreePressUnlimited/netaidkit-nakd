@@ -162,6 +162,7 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, char **output) {
 
     pid = fork();
     if (pid < 0) {
+        nakd_log(L_CRIT, "fork() failed: %s", strerror(errno));
         goto ret;
     } else if (pid == 0) { /* child */
         close(pipe_fd[PIPE_READ]);
