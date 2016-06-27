@@ -714,12 +714,12 @@ static int _wlan_connect(json_object *jnetwork) {
     nakd_log(L_INFO, "Updating WLAN configuration.");
 
     pthread_mutex_lock(&_wlan_config_mutex);
-    /* Continue if exactly one UCI section was found and updated. */
-    if (nakd_update_iface_config(NAKD_WLAN, _update_wlan_config_ssid,
-                                                    jnetwork) != 1) {
-        return 1;
-    }
+    int cfg_status = nakd_update_iface_config(NAKD_WLAN,
+                    _update_wlan_config_ssid, jnetwork);
     pthread_mutex_unlock(&_wlan_config_mutex);
+    /* Continue if exactly one UCI section was found and updated. */
+    if (cfg_status != 1)
+        return cfg_status;
 
     __swap_current_network(jnetwork);
     _connected_timestamp = monotonic_time();
@@ -762,10 +762,10 @@ static void _configure_ap_work(void *priv) {
         nakd_log(L_CRIT, "Couldn't configure Access Point.");
         goto unlock;
     }
-    pthread_mutex_unlock(&_wlan_config_mutex);
     _reload_wireless_config();
 
 unlock:
+    pthread_mutex_unlock(&_wlan_config_mutex);
     pthread_mutex_unlock(&_wlan_mutex);
     json_object_put(jnetwork);
 }
