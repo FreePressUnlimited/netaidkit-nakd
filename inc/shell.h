@@ -8,13 +8,16 @@
 #define NAKD_SCRIPT_PATH "/usr/share/nakd/scripts/"
 #define NAKD_SCRIPT(filename) NAKD_SCRIPT_PATH filename
 
-int nakd_shell_exec(const char *cwd, char **output, const char *fmt, ...);
-int nakd_shell_exec_argv(const char **argv, const char *cwd, char **output);
+int nakd_shell_exec(const char *cwd, char **output, int timeout_term,
+                             int timeout_kill, const char *fmt, ...);
+int nakd_shell_exec_argv(const char **argv, const char *cwd,
+         int timeout_term, int timeout_kill, char **output);
 
 typedef int (*nakd_traverse_cb)(const char *path, void *priv);
 int nakd_traverse_directory(const char *path, nakd_traverse_cb cb, void *priv);
 
-int nakd_shell_run_scripts(const char *dirpath);
+int nakd_shell_run_scripts(const char *dirpath, int timeout_term,
+                                               int timeout_kill);
 
 struct cmd_shell_spec {
     const char **argv;

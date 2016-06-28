@@ -299,7 +299,7 @@ static void toggle_rule(const char *hook_name, const char *state,
 static int _run_stage_scripts(struct stage *stage) {
     char dirpath[PATH_MAX];
     snprintf(dirpath, sizeof dirpath, NAKD_STAGE_SCRIPT_DIR_FMT, stage->name);
-    nakd_shell_run_scripts(dirpath);
+    nakd_shell_run_scripts(dirpath, 0, 0);
 }
 
 static int _start_openvpn(struct stage *stage) {

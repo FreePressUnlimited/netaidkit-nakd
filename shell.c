@@ -14,6 +14,7 @@
 #include "request.h"
 #include "log.h"
 #include "jsonrpc.h"
+#include "misc.h"
 
 #define PIPE_READ       0
 #define PIPE_WRITE      1
@@ -106,7 +107,8 @@ static void log_execve(const char *argv[]) {
     free(execve_log);
 }
 
-int nakd_shell_exec(const char *cwd, char **output, const char *fmt, ...) {
+int nakd_shell_exec(const char *cwd, char **output, int timeout_term,
+                           int timeout_kill, const char *fmt, ...) {
     va_list vl;
     char *args = malloc(NAKD_MAX_ARG_STRLEN);
     nakd_assert(args != NULL);
@@ -118,7 +120,8 @@ int nakd_shell_exec(const char *cwd, char **output, const char *fmt, ...) {
     const char **argv = (const char **)(build_argv(args));
     nakd_assert(argv != NULL);
 
-    int status = nakd_shell_exec_argv(argv, cwd, output);
+    int status = nakd_shell_exec_argv(argv, cwd, timeout_term, timeout_kill,
+                                                                    output);
     free_argv(argv);
     free(args);
     return status;
@@ -126,7 +129,8 @@ int nakd_shell_exec(const char *cwd, char **output, const char *fmt, ...) {
 
 /* Returns NULL if the command failed.
  */
-int nakd_shell_exec_argv(const char **argv, const char *cwd, char **output) {
+int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
+                                            int timeout_kill, char **output) {
     pid_t pid;
     int pipe_fd[2];
     char *response = NULL;
@@ -169,6 +173,7 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, char **output) {
         dup2(pipe_fd[PIPE_WRITE], 1);
         dup2(pipe_fd[PIPE_WRITE], 2);
 
+        setsid();
         if (cwd != NULL)
             chdir(cwd);
         execve(argv[0], (char * const *)(argv), NULL);
@@ -176,7 +181,17 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, char **output) {
         nakd_terminate("execve()");
     } else { /* parent */
         int wstatus;
-        waitpid(pid, &wstatus, WUNTRACED);
+        time_t start_timestamp = monotonic_time();
+       
+        while (!waitpid(pid, &wstatus, WUNTRACED | WNOHANG)) {
+            time_t timestamp = monotonic_time();
+            if (timeout_kill && (timestamp > start_timestamp + timeout_kill))
+                kill(-pid, SIGKILL);
+            else if (timeout_term && (timestamp > start_timestamp + timeout_term))
+                kill(-pid, SIGTERM);
+            sleep(1);
+        }
+
         close(pipe_fd[PIPE_WRITE]);
 
         int n;
@@ -203,15 +218,28 @@ ret:
     return status;
 }
 
+struct run_scripts_cb_priv {
+    int timeout_term;
+    int timeout_kill;
+};
+
 static int _run_scripts_cb(const char *path, void *priv) {
+    struct run_scripts_cb_priv *timeout = priv;
+
     /* disregard positive exit code */
-    nakd_shell_exec(NAKD_SCRIPT_PATH, NULL, path);
+    nakd_shell_exec(NAKD_SCRIPT_PATH, NULL, timeout->timeout_term,
+                                     timeout->timeout_kill, path);
     /* positive return status would stop directory traversal */
     return 0;
 }
 
-int nakd_shell_run_scripts(const char *dirpath) {
-    return nakd_traverse_directory(dirpath, _run_scripts_cb, NULL);
+int nakd_shell_run_scripts(const char *dirpath, int timeout_term,
+                                              int timeout_kill) {
+    struct run_scripts_cb_priv priv = {
+        .timeout_term = timeout_term,
+        .timeout_kill = timeout_kill
+    };
+    return nakd_traverse_directory(dirpath, _run_scripts_cb, &priv);
 }
 
 int nakd_traverse_directory(const char *dirpath, nakd_traverse_cb cb,
@@ -281,7 +309,7 @@ json_object *cmd_shell(json_object *jcmd, struct cmd_shell_spec *spec) {
 
     int status;
     char *output;
-    if ((status = nakd_shell_exec_argv(argv, spec->cwd, &output)) < 0) {
+    if ((status = nakd_shell_exec_argv(argv, spec->cwd, 0, 0, &output)) < 0) {
         nakd_log(L_NOTICE, "Error while running shell command %s", spec->argv[0]);
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR, NULL);
         goto response;

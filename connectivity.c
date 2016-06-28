@@ -47,15 +47,16 @@ static int _ethernet_wan_available(void) {
 static int _arping_gateway(enum nakd_interface intf) {
     int status;
 
+    /* arping doesn't always return after requested timeout */
     nakd_assert((status = nakd_shell_exec(NAKD_SCRIPT_PATH,
-                              NULL, GW_ARPING_SCRIPT " %s",
+                       NULL, 5, 10, GW_ARPING_SCRIPT " %s",
                          nakd_interface_name(intf))) >= 0);
     return status;
 }
 
 static char *_gateway_ip(void) {
     char *ip = NULL;
-    nakd_assert(nakd_shell_exec(NAKD_SCRIPT_PATH, &ip, GW_IP_SCRIPT) >= 0);
+    nakd_assert(nakd_shell_exec(NAKD_SCRIPT_PATH, &ip, 5, 10, GW_IP_SCRIPT) >= 0);
     return ip;
 }
 
@@ -187,7 +188,7 @@ static int _connectivity_cleanup(void) {
 
 static int _run_scripts_cb(const char *path, void *priv) {
     /* negated exit code - stop traversal if just one script exited with 0 */
-    return !nakd_shell_exec(NAKD_SCRIPT_PATH, NULL, path);
+    return !nakd_shell_exec(NAKD_SCRIPT_PATH, NULL, 5, 10, path);
 }
 
 /* returns 1 if just one script returns with 0 exit status */
