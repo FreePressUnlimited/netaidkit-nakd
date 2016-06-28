@@ -1,10 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <string.h>
 #include <errno.h>
+#include <execinfo.h>
+#include <unistd.h>
 #include "nak_signal.h"
 #include "log.h"
 #include "thread.h"
 #include "module.h"
+
+#define CRASH_REPORT_PATH "/run/nakd/nakd_crashXXXXXX"
 
 struct nakd_signal_handler {
     nakd_signal_handler impl;
@@ -117,8 +123,28 @@ void nakd_sigwait_loop(void) {
     }
 }
 
+void nakd_sigsegv_handler(int signo) {
+    void *bt[128];
+    int size = backtrace(bt, sizeof bt);
+
+    fputs("Segmentation fault\n", stderr);
+    backtrace_symbols_fd(bt, size, fileno(stderr));
+
+    int fd;
+    if ((fd = mkstemp(CRASH_REPORT_PATH)) != -1) {
+        backtrace_symbols_fd(bt, size, fd);
+        close(fd);
+    }
+
+    exit(1);
+}
+
 static int _signal_init(void) {
     _set_default_sigmask();
+
+    if (signal(SIGSEGV, nakd_sigsegv_handler) == SIG_ERR)
+        nakd_terminate("Couldn't register SIGSEGV handler: %s", strerror(errno));
+
     return 0;
 }
 
