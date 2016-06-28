@@ -266,6 +266,7 @@ int nakd_start_openvpn() {
     nakd_assert(pid >= 0);
 
     if (pid == 0) /* child */ {
+        setsid();
         execve(argv[0], argv, NULL);
         nakd_log(L_CRIT, "Couldn't start OpenVPN: %s", strerror(errno));
         return -1;
