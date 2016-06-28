@@ -2,18 +2,22 @@
 #define NAKD_LOG_H
 #include <stdio.h>
 #include <stdlib.h>
-#define DEFAULT_LOG_LEVEL L_DEBUG
+#define DEFAULT_LOG_LEVEL L_INFO
 
 enum {
     L_CRIT,
     L_WARNING,
     L_NOTICE,
     L_INFO,
-    L_DEBUG
+    L_DEBUG,
+
+    L_END
 };
 
 #define nakd_log(priority, format, args...) \
     _nakd_log((priority), (format), __func__, __FILE__, __LINE__, ##args)
+
+extern const char *loglevel_string[];
 
 void _nakd_log(int priority, const char *format, const char *func,
                                  const char *file, int line, ...);

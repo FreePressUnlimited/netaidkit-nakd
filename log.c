@@ -19,15 +19,17 @@ static int syslog_loglevel[] = {
     [L_WARNING] = LOG_WARNING,
     [L_NOTICE] = LOG_NOTICE,
     [L_INFO] = LOG_INFO,
-    [L_DEBUG] = LOG_DEBUG
+    [L_DEBUG] = LOG_DEBUG,
 };
 
-static const char *loglevel_string[] = {
+const char *loglevel_string[] = {
     [L_CRIT] = CRIT,
     [L_WARNING] = WARNING,
     [L_NOTICE] = NOTICE,
     [L_INFO] = INFO,
-    [L_DEBUG] = DEBUG
+    [L_DEBUG] = DEBUG,
+
+    [L_END] = NULL
 };
 
 void nakd_set_loglevel(int level) {

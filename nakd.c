@@ -42,19 +42,34 @@ static int _write_pid(char *pid_path) {
     return fd;
 }
 
+static void _config_stderr(void) {
+    nakd_use_syslog(0);
+}
+
+static void _config_loglevel(void) {
+    for (const char **ll = loglevel_string; *ll != NULL; ll++) {
+        if (!strcasecmp(*ll, optarg))
+            nakd_set_loglevel(ll - loglevel_string);
+    }
+    nakd_terminate("No such loglevel: %s. See: syslog manpage", optarg);
+}
+
 static void _get_args(int argc, char *argv[]) {
+    void (*config_impl[])(void) = {
+        _config_stderr,
+        _config_loglevel
+    };
+
     static struct option long_options[] = {
-        {"stderr", no_argument, 0, 0},
+        {"stderr", no_argument, NULL, 0},
+        {"loglevel", required_argument, NULL, 1},
         {}
     };
 
     int index;
-    while (getopt_long(argc, argv, "", long_options, &index) != -1) {
-        if (!strcmp(long_options[index].name, "stderr")) {
-            nakd_use_syslog(0);
-            break;
-        }
-    }
+    int val;
+    while ((val = getopt_long(argc, argv, "", long_options, &index)) != -1)
+        config_impl[val]();
 }
 
 int main(int argc, char *argv[]) {
