@@ -8,7 +8,7 @@ LDSCRIPT = $(patsubst %.ld, -T%.ld, $(wildcard *.ld))
 .PRECIOUS: $(DEPEND)
 
 INC = -Iinc
-CFLAGS += -std=c99 -D_GNU_SOURCE $(INC)
+CFLAGS += -std=c99 -D_GNU_SOURCE $(INC) -rdynamic
 
 LDLIBS += -lpthread -lrt -ljson-c -lubus -lubox -lblobmsg_json -luci -liwinfo
 
