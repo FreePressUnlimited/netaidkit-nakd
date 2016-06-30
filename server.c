@@ -22,7 +22,8 @@
 /* TODO nice to have: implement w/ epoll, threadpool and workqueue */
 
 #define MAX_CONNECTIONS     32
-#define SOCK_PATH      "/run/nakd/nakd.sock"
+#define SOCK_DIR       "/run/nakd"
+#define SOCK_PATH      SOCK_DIR "/nakd.sock"
 
 static struct sockaddr_un _nakd_sockaddr;
 static int                _nakd_sockfd;
@@ -376,8 +377,15 @@ static int _create_server_thread(void) {
     return 0;
 }
 
+static void _create_sock_dir(void) {
+    if (access(SOCK_DIR, X_OK))
+        nakd_assert(!mkdir(SOCK_DIR, 770));
+}
+
 static int _server_init(void) {
     if (!_unit_initialized) {
+        _create_sock_dir();
+
         pthread_mutex_init(&_connections_mutex, NULL);
         pthread_mutex_init(&_shutdown_mutex, NULL);
         pthread_cond_init(&_shutdown_cv, NULL);
