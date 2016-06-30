@@ -3,12 +3,15 @@
 #include <signal.h>
 #include <string.h>
 #include <errno.h>
-#include <execinfo.h>
 #include <unistd.h>
 #include "nak_signal.h"
 #include "log.h"
 #include "thread.h"
 #include "module.h"
+
+#ifdef NAKD_ENABLE_BACKTRACE
+    #include <execinfo.h>
+#endif
 
 #define CRASH_REPORT_PATH "/run/nakd/nakd_crashXXXXXX"
 
@@ -123,6 +126,7 @@ void nakd_sigwait_loop(void) {
     }
 }
 
+#ifdef NAKD_ENABLE_BACKTRACE
 void nakd_sigsegv_handler(int signo) {
     void *bt[128];
     int size = backtrace(bt, sizeof bt);
@@ -138,12 +142,15 @@ void nakd_sigsegv_handler(int signo) {
 
     exit(1);
 }
+#endif
 
 static int _signal_init(void) {
     _set_default_sigmask();
 
+#ifdef NAKD_ENABLE_BACKTRACE
     if (signal(SIGSEGV, nakd_sigsegv_handler) == SIG_ERR)
         nakd_terminate("Couldn't register SIGSEGV handler: %s", strerror(errno));
+#endif
 
     return 0;
 }
