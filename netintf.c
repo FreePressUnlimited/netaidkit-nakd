@@ -112,9 +112,9 @@ int nakd_update_iface_config(enum nakd_interface id,
                       "using interface \"%s\".", nakd_uci_interface_tag[
                                           id], nakd_interface_type[id]);
     } else {
-        nakd_log(L_INFO, "Found \"%s\" interface tag. (intf: %s)",
-                                       nakd_uci_interface_tag[id],
-                                         nakd_interface_type[id]);
+        nakd_log(L_DEBUG, "Found \"%s\" interface tag. (intf: %s)",
+                                        nakd_uci_interface_tag[id],
+                                          nakd_interface_type[id]);
     }
     return tags_found;
 }

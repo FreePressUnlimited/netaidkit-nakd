@@ -329,8 +329,8 @@ static void _accept_loop(void) {
             nakd_terminate("Can't accept new connections (%s)", strerror(errno));
         }
 
-        nakd_log(L_INFO, "Connection accepted, %d connection(s) currently "
-                                     "active.", nakd_active_connections());
+        nakd_log(L_DEBUG, "Connection accepted, %d connection(s) currently "
+                                      "active.", nakd_active_connections());
         _handle_connection(c_sock, &c_sockaddr);
     }
 
