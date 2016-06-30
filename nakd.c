@@ -48,8 +48,10 @@ static void _config_stderr(void) {
 
 static void _config_loglevel(void) {
     for (const char **ll = loglevel_string; *ll != NULL; ll++) {
-        if (!strcasecmp(*ll, optarg))
+        if (!strcasecmp(*ll, optarg)) {
             nakd_set_loglevel(ll - loglevel_string);
+            return;
+        }
     }
     nakd_terminate("No such loglevel: %s. See: syslog manpage", optarg);
 }
