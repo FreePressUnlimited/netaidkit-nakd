@@ -135,7 +135,7 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
     }
 
     const char *command = json_object_get_string(jparams);
-    if (!_test_acl(command)) {
+    if (_test_acl(command)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
                              "Invalid request - blacklisted command");
         goto response;
