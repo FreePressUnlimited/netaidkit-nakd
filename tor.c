@@ -31,7 +31,9 @@ static int _tor_authenticate(void) {
         nakd_log(L_WARNING, "Couldn't write to Tor socket.");
 
     fgets(buf, sizeof buf, _tor_fp);
-    return strcmp("250 OK", buf);
+
+    const char auth_successful[] = "250 OK";
+    return strncmp(auth_successful, buf, sizeof auth_successful - 1);
 }
 
 static int _open_mgmt_socket(void) {
