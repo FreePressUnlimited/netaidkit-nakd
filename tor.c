@@ -102,7 +102,7 @@ static json_object *_read_result(void) {
          *
          * 2.3
          */
-        if (buf[4] == ' ')
+        if (buf[3] == ' ')
             break;
     }
     return jresult;
