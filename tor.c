@@ -6,6 +6,7 @@
 #include <linux/un.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 #include <json-c/json.h>
 #include "log.h"
 #include "command.h"
@@ -58,7 +59,7 @@ static int _open_mgmt_socket(void) {
     int len = sizeof(_tor_sockaddr.sun_family) + sizeof SOCK_PATH - 1;
     if (connect(_tor_sockfd, (struct sockaddr *)(&_tor_sockaddr), len) == -1) {
         nakd_log(L_WARNING, "Couldn't connect to Tor management socket "
-                                                             SOCK_PATH);
+                                   SOCK_PATH ". (%s)", strerror(errno));
         return -1;
     }
     nakd_assert((_tor_fp = fdopen(_tor_sockfd, "r+")) != NULL);

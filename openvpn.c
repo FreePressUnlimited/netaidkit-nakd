@@ -127,8 +127,8 @@ static int _open_mgmt_socket(void) {
     int len = sizeof(_openvpn_sockaddr.sun_family) + sizeof SOCK_PATH - 1;
     if (connect(_openvpn_sockfd, (struct sockaddr *)(&_openvpn_sockaddr), len)
                                                                       == -1) {
-        nakd_log(L_WARNING, "Couldn't connect to OpenVPN management socket %s",
-                                                                    SOCK_PATH);
+        nakd_log(L_WARNING, "Couldn't connect to OpenVPN management socket "
+                                       SOCK_PATH ". (%s)", strerror(errno));
         return -1;
     }
 
