@@ -138,6 +138,7 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
     }
 
     const char *command = json_object_get_string(jparams);
+
     if (_test_acl(command)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
                              "Invalid request - blacklisted command");
@@ -152,7 +153,9 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
         goto unlock;
     }
 
-    if (fputs(command, _tor_fp) == EOF) {
+    char command_nl[512];
+    snprintf(command_nl, sizeof command_nl, "%s\n", command);
+    if (fputs(command_nl, _tor_fp) == EOF) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
             "Internal error - couldn't write to Tor control socket");
         goto unlock;
