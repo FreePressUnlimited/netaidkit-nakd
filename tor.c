@@ -93,8 +93,6 @@ static json_object *_read_result(void) {
 
     json_object *jresult = json_object_new_array();
     while (fgets(buf, sizeof buf, _tor_fp) != NULL) {
-        nakd_assert(strlen(buf) >= 4);
-
         json_object *jline = json_object_new_string(buf);
         json_object_array_add(jresult, jline);
 
@@ -103,6 +101,8 @@ static json_object *_read_result(void) {
          *
          * 2.3
          */
+        if (strlen(buf) < 4)
+            continue;
         if (buf[3] == ' ')
             break;
     }
