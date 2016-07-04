@@ -319,7 +319,8 @@ static void _accept_loop(void) {
         sem_wait(&_connections_sem);
         nakd_log(L_DEBUG, "%d connection slot(s) available.",
                 MAX_CONNECTIONS - nakd_active_connections());
-        c_sock = accept(_nakd_sockfd, (struct sockaddr *)(&c_sockaddr), &len);
+        c_sock = accept4(_nakd_sockfd, (struct sockaddr *)(&c_sockaddr), &len,
+                                                                SOCK_CLOEXEC);
         if (c_sock == -1) {
             sem_post(&_connections_sem);
 

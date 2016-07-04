@@ -117,7 +117,8 @@ static int _open_mgmt_socket(void) {
         return -1;
     }
 
-    nakd_assert((_openvpn_sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) != -1);
+    nakd_assert((_openvpn_sockfd = socket(AF_UNIX, SOCK_CLOEXEC | SOCK_STREAM,
+                                                                   0)) != -1);
 
     /* Check if SOCK_PATH is strncpy safe. */
     nakd_assert(sizeof SOCK_PATH < UNIX_PATH_MAX);
