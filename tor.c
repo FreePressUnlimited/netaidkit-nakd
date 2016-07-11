@@ -225,6 +225,7 @@ static const char *_tor_acl[] = {
     "GETINFO traffic/written",
     "GETINFO network-liveness",
     "GETINFO status/circuit-established",
+    "GETINFO status/bootstrap-phase",
     NULL,
 };
 
