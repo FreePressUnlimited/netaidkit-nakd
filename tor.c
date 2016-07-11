@@ -36,8 +36,18 @@ static struct nakd_timer *_notification_reconnect_timer;
 
 static pthread_mutex_t _tor_cmd_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static int _tor_notifications_enabled;
+
 static void _close_mgmt_socket(struct tor_cs *s);
 static int _tor_init_notification_socket(void);
+
+void nakd_tor_enable_notifications(void) {
+    _tor_notifications_enabled = 1;
+}
+
+void nakd_tor_disable_notifications(void) {
+    _tor_notifications_enabled = 0;
+}
 
 static int _access_mgmt_socket() {
     return access(SOCK_PATH, W_OK);
@@ -333,6 +343,9 @@ static struct work_desc _tor_notification_reconnect_desc = {
 
 static void _tor_notification_reconnect_handler(siginfo_t *timer_info,
                                            struct nakd_timer *timer) {
+    if (!_tor_notifications_enabled)
+        return;
+
     if (!_is_open(&_tor_notification_s)) {
         struct work *reconnect_entry =
             nakd_alloc_work(&_tor_notification_reconnect_desc);
