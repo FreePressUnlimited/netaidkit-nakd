@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <linux/un.h>
 #include <string.h>
+#include <strings.h>
 #include <pthread.h>
 #include <errno.h>
 #include <json-c/json.h>
@@ -12,101 +14,206 @@
 #include "command.h"
 #include "jsonrpc.h"
 #include "tor.h"
+#include "module.h"
+#include "timer.h"
+#include "workqueue.h"
+#include "io.h"
 
 #define SOCK_PATH "/run/tor/tor.sock"
 
 static struct sockaddr_un _tor_sockaddr;
-static int                _tor_sockfd;
-static FILE               *_tor_fp;
+static size_t _tor_sockaddr_len;
+
+struct tor_cs {
+    int fd;
+    FILE *fp;
+};
+
+static struct tor_cs _tor_cmd_s;
+static struct tor_cs _tor_notification_s;
+
+static struct nakd_timer *_notification_reconnect_timer;
 
 static pthread_mutex_t _tor_cmd_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int _access_mgmt_socket(void) {
+static int _tor_init_notification_socket(void);
+
+static int _access_mgmt_socket() {
     return access(SOCK_PATH, W_OK);
 }
 
-static int _tor_authenticate(void) {
-    char buf[256];
+enum tor_response_code {
+    CONNECTION_LOST = 0,
 
-    if (fputs("AUTHENTICATE\n", _tor_fp) == EOF)
-        nakd_log(L_WARNING, "Couldn't write to Tor socket.");
+    TOR_OK = 250,
+    TOR_UNNECESSARY = 251,
 
-    fgets(buf, sizeof buf, _tor_fp);
+    TOR_RESOURCE_EXHAUSTED = 451,
 
-    const char auth_successful[] = "250 OK";
-    return strncmp(auth_successful, buf, sizeof auth_successful - 1);
+    TOR_SYNTAX_ERROR = 500,
+
+    TOR_UNRECOGNIZED_COMMAND = 510,
+    TOR_UNIMPLEMENTED_COMMAND = 511,
+    TOR_SYNTAX_ERROR_ARG = 512,
+    TOR_UNRECOGNIZED_ARGUMENT = 513,
+    TOR_AUTHENTICATION_REQUIRED = 514,
+    TOR_BAD_AUTHENTICATION = 515,
+
+    TOR_UNSPECIFIED_ERROR = 550,
+    TOR_INTERNAL_ERROR = 551,
+    TOR_UNRECOGNIZED_ENTITY = 552,
+    TOR_INVALID_CONFIG_VALUE = 553,
+    TOR_INVALID_DESCRIPTOR = 554,
+    TOR_UNMANAGED_ENTITY = 555,
+
+    TOR_ASYNCHRONOUS_NOTIFICATION = 650
+};
+
+struct tor_response {
+    enum tor_response_code code;
+
+    /* it's the last response line */
+    int complete;
+};
+
+int _tor_parse_response(char *s, struct tor_response *result) {
+    if (strlen(s) < 4)
+        return 1;
+
+    /* See:
+     * https://gitweb.torproject.org/torspec.git/tree/control-spec.txt 
+     *
+     * 2.3.
+     */
+    result->complete = s[3] == ' ';
+    s[3] = 0;
+    result->code = (enum tor_response_code)(atoi(s));
+    return 0;
 }
 
-static int _open_mgmt_socket(void) {
-    /* check if there's already a valid descriptor open. */
-    if (_tor_sockfd && fcntl(_tor_sockfd, F_GETFD) != -1) {
-        return 0;
+static int _tor_positive_completion(enum tor_response_code rc) {
+    return rc == TOR_OK || rc == TOR_UNNECESSARY; 
+}
+
+static void _tor_notification_process_single(const char * line) {
+    nakd_log(L_DEBUG, "Got Tor notification: %s", line);
+}
+
+static int _tor_notification_process(FILE *fp) {
+    char buf[1024];
+
+    struct tor_response response;
+    while (fgets(buf, sizeof buf, fp) != NULL) {
+        if (_tor_parse_response(buf, &response))
+            continue;
+
+        if (response.code != TOR_ASYNCHRONOUS_NOTIFICATION)
+            nakd_log(L_CRIT, "Expected code 650, got %d.", response.code);
+        else
+            _tor_notification_process_single(buf);
+
+        if (response.complete)
+            break;
     }
 
+    if (!response.complete) {
+        nakd_log(L_WARNING, "Incomplete notification.");  
+        return 1;
+    }
+    return 0;
+}
+
+static int _tor_command(struct tor_cs *s, json_object **jresult,
+                                         const char *fmt, ...) {
+    va_list vl; 
+    char buf[1024];
+    char command[1024];
+
+    va_start(vl, fmt);
+    vsnprintf(command, sizeof command - 1, fmt, vl);
+    strcat(command, "\n");
+    va_end(vl);
+
+    if (fputs(command, s->fp) == EOF) {
+        nakd_log(L_WARNING, "Couldn't write to Tor control socket.");
+        return 1;
+    }
+
+    if (jresult != NULL)
+        *jresult = json_object_new_array();
+
+    struct tor_response response;
+    while (fgets(buf, sizeof buf, s->fp) != NULL) {
+        if (jresult != NULL) {
+            json_object *jline = json_object_new_string(buf);
+            json_object_array_add(*jresult, jline);
+        }
+
+        if (_tor_parse_response(buf, &response))
+            continue;
+        if (response.complete)
+            break;
+    }
+
+    if (!response.complete)
+        nakd_log(L_WARNING, "Incomplete command response.");
+
+    if (!_tor_positive_completion(response.code)) {
+        nakd_log(L_WARNING, "Tor command failed, code: %d",
+                                     (int)(response.code));
+    }
+
+    return !(_tor_positive_completion(response.code) && response.complete);
+
+fail:
+    if (jresult != NULL)
+        json_object_put(*jresult);
+    return 1;
+}
+
+static int _is_open(struct tor_cs *s) {
+    return s->fd && fcntl(s->fd, F_GETFD) != -1;
+}
+
+static int _open_mgmt_socket(struct tor_cs *s) {
     if (_access_mgmt_socket()) {
         nakd_log(L_WARNING, "Can't access Tor management socket at "
                                                          SOCK_PATH);
         return -1;
     }
 
-    nakd_assert((_tor_sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) != -1);
+    nakd_assert((s->fd = socket(AF_UNIX, SOCK_CLOEXEC | SOCK_STREAM, 0)) != -1);
 
-    /* check if SOCK_PATH is strncpy safe. */
-    nakd_assert(sizeof SOCK_PATH < UNIX_PATH_MAX);
-
-    _tor_sockaddr.sun_family = AF_UNIX;
-    strncpy(_tor_sockaddr.sun_path, SOCK_PATH, sizeof SOCK_PATH);       
-    int len = sizeof(_tor_sockaddr.sun_family) + sizeof SOCK_PATH - 1;
-    if (connect(_tor_sockfd, (struct sockaddr *)(&_tor_sockaddr), len) == -1) {
+    if (connect(s->fd, (struct sockaddr *)(&_tor_sockaddr),
+                                _tor_sockaddr_len) == -1) {
         nakd_log(L_WARNING, "Couldn't connect to Tor management socket "
                                    SOCK_PATH ". (%s)", strerror(errno));
         return -1;
     }
-    nakd_assert((_tor_fp = fdopen(_tor_sockfd, "r+")) != NULL);
-    setbuf(_tor_fp, NULL);
+    nakd_assert((s->fp = fdopen(s->fd, "r+")) != NULL);
+    setbuf(s->fp, NULL);
 
     nakd_log(L_DEBUG, "Connected to Tor management socket " SOCK_PATH);
 
-    if (_tor_authenticate()) {
+    if (_tor_command(s, NULL, "AUTHENTICATE")) {
         nakd_log(L_WARNING, "Couldn't authenticate Tor control connection."); 
         return 1;
     }
     return 0;
 }
 
-static void _close_mgmt_socket(void) {
+static void _close_mgmt_socket(struct tor_cs *s) {
     nakd_log(L_DEBUG, "Closing Tor management socket " SOCK_PATH);
 
-    if (_tor_fp) {
-        fclose(_tor_fp);
-        _tor_fp = 0;
+    if (s->fp) {
+        fclose(s->fp);
+        s->fp = 0;
     }
 
-    if (_tor_sockfd) {
-        close(_tor_sockfd);
-        _tor_sockfd = 0;
+    if (s->fd) {
+        close(s->fd);
+        s->fd = 0;
     }
-}
-
-static json_object *_read_result(void) {
-    char buf[1024];
-
-    json_object *jresult = json_object_new_array();
-    while (fgets(buf, sizeof buf, _tor_fp) != NULL) {
-        json_object *jline = json_object_new_string(buf);
-        json_object_array_add(jresult, jline);
-
-        /* See:
-         * https://svn.torproject.org/svn/tor/tags/imported-from-cvs/trunk/doc/control-spec.txt
-         *
-         * 2.3
-         */
-        if (strlen(buf) < 4)
-            continue;
-        if (buf[3] == ' ')
-            break;
-    }
-    return jresult;
 }
 
 static const char *_tor_acl[] = {
@@ -150,28 +257,75 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
 
     pthread_mutex_lock(&_tor_cmd_mutex);
 
-    if (_open_mgmt_socket()) {
-        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-               "Internal error - couldn't open Tor control socket.");
-        goto unlock;
+    if (!_is_open(&_tor_cmd_s)) {
+        if (_open_mgmt_socket(&_tor_cmd_s)) {
+            jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                   "Internal error - couldn't open Tor control socket.");
+            goto unlock;
+        }
     }
 
-    char command_nl[512];
-    snprintf(command_nl, sizeof command_nl, "%s\n", command);
-    if (fputs(command_nl, _tor_fp) == EOF) {
+    json_object *jresult;
+    if (_tor_command(&_tor_cmd_s, &jresult, command)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
             "Internal error - couldn't write to Tor control socket");
         goto unlock;
     }
-
-    json_object *jresult = _read_result();
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
 
 unlock:
-    _close_mgmt_socket();
+    _close_mgmt_socket(&_tor_cmd_s);
     pthread_mutex_unlock(&_tor_cmd_mutex);
 response:
     return jresponse;
+}
+
+static void _tor_init_sockaddr(void) {
+    /* check if SOCK_PATH is strncpy safe. */
+    nakd_assert(sizeof SOCK_PATH < UNIX_PATH_MAX);
+
+    _tor_sockaddr.sun_family = AF_UNIX;
+    strncpy(_tor_sockaddr.sun_path, SOCK_PATH, sizeof SOCK_PATH);       
+    _tor_sockaddr_len = sizeof(_tor_sockaddr.sun_family) + sizeof SOCK_PATH
+                                                                       - 1;
+}
+
+static int _tor_notification_subscribe(const char *ev_code) {
+    return _tor_command(&_tor_notification_s, NULL, "SETEVENTS %s", ev_code);
+}
+
+static void _tor_notification_handler(struct epoll_event *ev) {
+    if (_tor_notification_process(_tor_notification_s.fp)) {
+        /* read failed, try reopening */
+        nakd_poll_remove(_tor_notification_s.fd);
+        _tor_init_notification_socket();
+    }
+}
+
+static int _tor_init_notification_socket(void) {
+    if (!_is_open(&_tor_notification_s)) {
+        if (_open_mgmt_socket(&_tor_notification_s)) {
+            nakd_log(L_CRIT, "Couldn't open Tor notification socket at "
+                                                             SOCK_PATH);
+            return 1;
+        }
+        nakd_poll_add(_tor_notification_s.fd, EPOLLIN,
+                           _tor_notification_handler);
+    }
+    return 0;
+}
+
+static int _tor_init(void) {
+    _tor_init_sockaddr();
+    _tor_init_notification_socket();
+    _tor_notification_subscribe("STATUS_CLIENT");
+    return 0;
+}
+
+static int _tor_cleanup(void) {
+    _close_mgmt_socket(&_tor_cmd_s);
+    _close_mgmt_socket(&_tor_notification_s);
+    return 0;
 }
 
 static struct nakd_command tor = {
@@ -184,3 +338,11 @@ static struct nakd_command tor = {
     .access = ACCESS_USER
 };
 NAKD_DECLARE_COMMAND(tor);
+
+static struct nakd_module module_tor = {
+    .name = "tor",
+    .deps = (const char *[]){"timer", "workqueue", NULL},
+    .init = _tor_init,
+    .cleanup = _tor_cleanup
+};
+NAKD_DECLARE_MODULE(module_tor);
