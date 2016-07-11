@@ -47,10 +47,12 @@ static int _io_init(void) {
     nakd_assert(!nakd_thread_create_joinable(_poll_loop,
          _poll_shutdown, NULL, (void *)(_poll_thread)));
     nakd_assert((_efd = epoll_create1(0)) != -1);
+    return 0;
 }
 
 static int _io_cleanup(void) {
     close(_efd);
+    return 0;
 }
 
 int nakd_poll_add(int fd, int events, nakd_poll_handler handler) {
