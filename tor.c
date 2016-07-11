@@ -29,13 +29,14 @@ struct tor_cs {
     FILE *fp;
 };
 
-static struct tor_cs _tor_cmd_s;
 static struct tor_cs _tor_notification_s;
 
+#define TOR_NOTIFICATION_RECONNECT_INTERVAL 5000 /* ms */
 static struct nakd_timer *_notification_reconnect_timer;
 
 static pthread_mutex_t _tor_cmd_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static void _close_mgmt_socket(struct tor_cs *s);
 static int _tor_init_notification_socket(void);
 
 static int _access_mgmt_socket() {
@@ -209,11 +210,8 @@ static void _close_mgmt_socket(struct tor_cs *s) {
         fclose(s->fp);
         s->fp = 0;
     }
-
-    if (s->fd) {
-        close(s->fd);
-        s->fd = 0;
-    }
+    /* closed in fclose */
+    s->fd = 0;
 }
 
 static const char *_tor_acl[] = {
@@ -258,24 +256,24 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
 
     pthread_mutex_lock(&_tor_cmd_mutex);
 
-    if (!_is_open(&_tor_cmd_s)) {
-        if (_open_mgmt_socket(&_tor_cmd_s)) {
-            jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                   "Internal error - couldn't open Tor control socket.");
-            goto unlock;
-        }
+    struct tor_cs cmd_s;
+    if (_open_mgmt_socket(&cmd_s)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+               "Internal error - couldn't open Tor control socket.");
+        goto unlock;
     }
 
     json_object *jresult;
-    if (_tor_command(&_tor_cmd_s, &jresult, command)) {
+    if (_tor_command(&cmd_s, &jresult, command)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-            "Internal error - couldn't write to Tor control socket");
+            "Internal error - while processing Tor command");
         goto unlock;
     }
+
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
 
 unlock:
-    _close_mgmt_socket(&_tor_cmd_s);
+    _close_mgmt_socket(&cmd_s);
     pthread_mutex_unlock(&_tor_cmd_mutex);
 response:
     return jresponse;
@@ -297,34 +295,62 @@ static int _tor_notification_subscribe(const char *ev_code) {
 
 static void _tor_notification_handler(struct epoll_event *ev) {
     if (_tor_notification_process(_tor_notification_s.fp)) {
-        /* read failed, try reopening */
+        /* read failed */
         nakd_poll_remove(_tor_notification_s.fd);
-        _tor_init_notification_socket();
+        _close_mgmt_socket(&_tor_notification_s);
     }
 }
 
 static int _tor_init_notification_socket(void) {
-    if (!_is_open(&_tor_notification_s)) {
-        if (_open_mgmt_socket(&_tor_notification_s)) {
-            nakd_log(L_CRIT, "Couldn't open Tor notification socket at "
-                                                             SOCK_PATH);
-            return 1;
-        }
-        nakd_poll_add(_tor_notification_s.fd, EPOLLIN,
-                           _tor_notification_handler);
+    if (_open_mgmt_socket(&_tor_notification_s)) {
+        nakd_log(L_WARNING, "Couldn't open Tor notification socket at "
+                                                         SOCK_PATH);
+        return 1;
     }
+    if (_tor_notification_subscribe("STATUS_CLIENT")) {
+        nakd_log(L_WARNING, "Couldn't subscribe to STATUS_CLIENT "
+                                                 "notifications");
+        return 1;
+    }
+    nakd_assert(!nakd_poll_add(_tor_notification_s.fd, EPOLLIN,
+                                   _tor_notification_handler));
     return 0;
+}
+
+static void _tor_notification_reconnect_work(void *priv) {
+    if (!_tor_init_notification_socket()) {
+        nakd_log(L_INFO, "Initialized Tor notification socket at "
+                                                       SOCK_PATH);
+    } else {
+        nakd_log(L_WARNING, "Couldn't initialize Tor notification socket.");
+    }
+}
+
+static struct work_desc _tor_notification_reconnect_desc = {
+    .impl = _tor_notification_reconnect_work,
+    .name = "tor notification socket reconnect"
+};
+
+static void _tor_notification_reconnect_handler(siginfo_t *timer_info,
+                                           struct nakd_timer *timer) {
+    if (!_is_open(&_tor_notification_s)) {
+        struct work *reconnect_entry =
+            nakd_alloc_work(&_tor_notification_reconnect_desc);
+        nakd_workqueue_add(nakd_wq, reconnect_entry);
+    }
 }
 
 static int _tor_init(void) {
     _tor_init_sockaddr();
-    _tor_init_notification_socket();
-    _tor_notification_subscribe("STATUS_CLIENT");
+    _notification_reconnect_timer = nakd_timer_add(
+               TOR_NOTIFICATION_RECONNECT_INTERVAL,
+               _tor_notification_reconnect_handler,
+                                             NULL);
     return 0;
 }
 
 static int _tor_cleanup(void) {
-    _close_mgmt_socket(&_tor_cmd_s);
+    nakd_timer_remove(_notification_reconnect_timer);
     _close_mgmt_socket(&_tor_notification_s);
     return 0;
 }
