@@ -448,9 +448,11 @@ struct openvpn_command{
     json_object *(*impl)(json_object *);
 } static const _openvpn_commands[] = {
     { "state", _call_state },
-    { "start", _call_start },
-    { "stop", _call_stop },
-    { "restart", _call_restart }
+    /*
+     *   { "start", _call_start },
+     *   { "stop", _call_stop },
+     *   { "restart", _call_restart }
+     */
 };
 
 json_object *cmd_openvpn(json_object *jcmd, void *arg) {
@@ -490,7 +492,7 @@ static struct nakd_command openvpn = {
     .name = "openvpn",
     .desc = "Manage OpenVPN daemon.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"openvpn\", \"params\":"
-                "\"either of: start, stop, restart, state\", \"id\": 42}",
+                                                 "\"state\", \"id\": 42}",
     .handler = cmd_openvpn,
     .access = ACCESS_ROOT,
 };
