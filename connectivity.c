@@ -101,6 +101,9 @@ static void _connectivity_update(void *priv) {
         nakd_log(L_CRIT, "Can't query WLAN interface UCI configuration.");
         goto unlock;
     } else if (wlan_connected) {
+        nakd_wlan_scan();
+        nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
+
         /* check if the network is still in range */
         if (current_ssid == NULL || !nakd_wlan_in_range(current_ssid)) {
             nakd_log(L_INFO, "\"%s\" WLAN is no longer in range.",
@@ -130,9 +133,6 @@ static void _connectivity_update(void *priv) {
 
     nakd_log(L_INFO, "No Ethernet or wireless connection, looking for WLAN"
                                                             " candidate.");
-
-    nakd_wlan_scan();
-    nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
 
     json_object *jnetwork = nakd_wlan_candidate();
     if (jnetwork == NULL) {
