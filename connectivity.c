@@ -47,10 +47,16 @@ static int _ethernet_wan_available(void) {
 static int _arping_gateway(enum nakd_interface intf) {
     int status;
 
-    /* arping doesn't always return after requested timeout */
-    nakd_assert((status = nakd_shell_exec(NAKD_SCRIPT_PATH,
-                       NULL, 5, 10, GW_ARPING_SCRIPT " %s",
-                         nakd_interface_name(intf))) >= 0);
+    status = nakd_shell_exec(NAKD_SCRIPT_PATH,
+          NULL, 8, 10, GW_ARPING_SCRIPT " %s",
+                   nakd_interface_name(intf));
+    /* 
+     * arping refused to terminate itself after a specified timeout, most
+     * likely waiting for some syscall to complete. Return OK for now and
+     * count for the next call to return proper results.
+     */
+    if (status == -1)
+        return 0;
     return status;
 }
 
