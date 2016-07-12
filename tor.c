@@ -149,12 +149,15 @@ static int _tor_command(struct tor_cs *s, json_object **jresult,
         nakd_log(L_WARNING, "Couldn't write to Tor control socket.");
         return 1;
     }
+    nakd_log(L_DEBUG, "Tor: >>%s", command);
 
     if (jresult != NULL)
         *jresult = json_object_new_array();
 
     struct tor_response response;
     while (fgets(buf, sizeof buf, s->fp) != NULL) {
+        nakd_log(L_DEBUG, "Tor: <<%s", buf);
+
         if (jresult != NULL) {
             json_object *jline = json_object_new_string(buf);
             json_object_array_add(*jresult, jline);
