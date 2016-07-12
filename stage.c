@@ -550,6 +550,13 @@ static json_object *__desc_stage(struct stage *stage) {
     return jresult;
 }
 
+const struct stage *nakd_stage_current(void) {
+    pthread_mutex_lock(&_stage_status_mutex);
+    const struct stage * current = (const struct stage *)(_current_stage);
+    pthread_mutex_unlock(&_stage_status_mutex);
+    return current;
+}
+
 json_object *cmd_stage_current(json_object *jcmd, void *param) {
     pthread_mutex_lock(&_stage_status_mutex);
 

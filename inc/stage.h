@@ -25,6 +25,8 @@ struct stage {
     struct nakd_uci_hook *hooks;
 };
 
+const struct stage *nakd_stage_current(void);
+
 json_object *cmd_stage_set(json_object *jcmd, void *param);
 
 void nakd_stage_spec(struct stage *stage, int save);

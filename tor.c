@@ -18,6 +18,7 @@
 #include "timer.h"
 #include "workqueue.h"
 #include "io.h"
+#include "stage.h"
 
 #define SOCK_PATH "/run/tor/tor.sock"
 
@@ -264,6 +265,13 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
     if (_test_acl(command)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
                              "Invalid request - blacklisted command");
+        goto response;
+    }
+
+    const struct stage *current_stage = nakd_stage_current();
+    if (current_stage != NULL && strcmp(current_stage->name, "tor")) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+                 "Invalid request - only available in \"tor\" stage");
         goto response;
     }
 

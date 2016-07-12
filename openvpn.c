@@ -17,6 +17,7 @@
 #include "jsonrpc.h"
 #include "misc.h"
 #include "command.h"
+#include "stage.h"
 
 #define SOCK_PATH "/run/nakd/openvpn.sock"
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
@@ -467,6 +468,13 @@ json_object *cmd_openvpn(json_object *jcmd, void *arg) {
                                                                 "command");
         jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
                    "Invalid parameters - params should be a string");
+        goto response;
+    }
+
+    const struct stage *current_stage = nakd_stage_current();
+    if (current_stage != NULL && strcmp(current_stage->name, "vpn")) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+                 "Invalid request - only available in \"vpn\" stage");
         goto response;
     }
 
