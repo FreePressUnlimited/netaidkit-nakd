@@ -306,13 +306,14 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
     if (_tor_command(&cmd_s, &jresult, command)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
             "Internal error - while processing Tor command");
-        goto unlock;
+        goto sfd;
     }
 
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
 
-unlock:
+sfd:
     _close_mgmt_socket(&cmd_s);
+unlock:
     pthread_mutex_unlock(&_tor_cmd_mutex);
 response:
     return jresponse;
