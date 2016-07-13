@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 #include "log.h"
 
 #define CRIT    "CRITICAL"
@@ -64,16 +66,17 @@ void _nakd_log(int priority, const char *format, const char *func,
     if (priority > loglevel)
         return;
 
+    long tid = syscall(SYS_gettid);
     va_start(vl, format);
     if (use_syslog) {
-        snprintf(_fmt, sizeof(_fmt), "[%s:%d, %s] %s", file, line, func,
-                                                                format);
+        snprintf(_fmt, sizeof(_fmt), "(%ld) [%s:%d, %s] %s", tid,
+                                      file, line, func, format);
 
         vsyslog(syslog_loglevel[priority], _fmt, vl);
     } else {
-        snprintf(_fmt, sizeof(_fmt), "\x1b[%sm[%s] [%s:%d, %s] %s\x1b[37m\n",
-                _ansi_color[priority], loglevel_string[priority], file, line,
-                                                               func, format);
+        snprintf(_fmt, sizeof(_fmt), "\x1b[%sm[%s] (%ld) [%s:%d, %s] %s\x1b[37m\n",
+                _ansi_color[priority], loglevel_string[priority], tid,
+                                            file, line, func, format);
         vfprintf(stderr, _fmt, vl);
     }
 
