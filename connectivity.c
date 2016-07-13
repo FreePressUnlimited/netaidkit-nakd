@@ -108,8 +108,19 @@ static void _connectivity_update(void *priv) {
             goto unlock;
         } else {
             nakd_log(L_INFO, "Default gateway doesn't respond to ARP"
-                                                           " ping.");
-            nakd_wlan_disconnect();
+                       " ping - checking if it's still in range...");
+
+            json_object *jcurrent = nakd_wlan_current();
+            if (jcurrent != NULL) {
+                const char *current_ssid = nakd_net_ssid(jcurrent);
+
+                nakd_wlan_scan();
+                if (!nakd_wlan_in_range(current_ssid)) {
+                    nakd_wlan_disconnect();
+                    json_object_put(jcurrent);
+                    goto unlock;
+                }
+            }
         }
     }
 
