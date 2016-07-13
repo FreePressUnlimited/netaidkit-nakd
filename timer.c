@@ -32,10 +32,8 @@ static int _timer_handler(siginfo_t *siginfo) {
     pthread_mutex_lock(&_timers_mutex);
     struct nakd_timer *timer = siginfo->si_value.sival_ptr;
     /* in case the timer was removed, but a signal is still pending */
-    if (timer->active) {
-        nakd_log(L_DEBUG, "Calling \"%s\" timer handler.", timer->name);
+    if (timer->active)
         timer->handler(siginfo, timer);
-    }
     pthread_mutex_unlock(&_timers_mutex);
     return 0; /* handled */
 }

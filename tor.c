@@ -373,6 +373,8 @@ static struct work_desc _tor_notification_reconnect_desc = {
 
 static void _tor_notification_reconnect_handler(siginfo_t *timer_info,
                                            struct nakd_timer *timer) {
+    nakd_log_timer(timer);
+
     if (!_tor_notifications_enabled)
         return;
 

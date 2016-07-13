@@ -408,6 +408,8 @@ static struct work_desc _stage_work_desc = {
 
 static void _stage_update_cb(siginfo_t *timer_info,
                         struct nakd_timer *timer) {
+    nakd_log_timer(timer);
+
     if (!nakd_work_pending(nakd_wq, _stage_work_desc.name)) {
         struct work *stage_wq_entry = nakd_alloc_work(&_stage_work_desc);
         nakd_workqueue_add(nakd_wq, stage_wq_entry);

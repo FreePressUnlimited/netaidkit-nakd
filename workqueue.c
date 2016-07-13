@@ -61,6 +61,7 @@ static void __check_timeout(void) {
 
 static void _timeout_sighandler(siginfo_t *timer_info,
                            struct nakd_timer *timer) {
+    nakd_log_timer(timer);
     __check_timeout();
 }
 

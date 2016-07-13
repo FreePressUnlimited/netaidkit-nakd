@@ -14,6 +14,9 @@ struct nakd_timer {
     int active;
 };
 
+#define nakd_log_timer(timer) nakd_log(L_DEBUG, "Handling \"%s\" timer.", \
+                                                              timer->name);
+
 struct nakd_timer *nakd_timer_add(int interval_ms, nakd_timer_handler handler,
                                                 void *priv, const char *name);
 void __nakd_timer_remove(struct nakd_timer *timer);

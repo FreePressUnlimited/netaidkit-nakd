@@ -398,6 +398,8 @@ static struct work_desc _update_desc = {
 
 static void _netintf_update_sighandler(siginfo_t *timer_info,
                                   struct nakd_timer *timer) {
+    nakd_log_timer(timer);
+
     /* skip, if there's already a pending update in the workqueue */
     if (!nakd_work_pending(nakd_wq, _update_desc.name)) {
         struct work *work = nakd_alloc_work(&_update_desc);
