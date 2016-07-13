@@ -48,7 +48,7 @@ static int _arping_gateway(enum nakd_interface intf) {
     int status;
 
     status = nakd_shell_exec(NAKD_SCRIPT_PATH,
-          NULL, 8, 10, GW_ARPING_SCRIPT " %s",
+          NULL, 5, 8, GW_ARPING_SCRIPT " %s",
                    nakd_interface_name(intf));
     /* 
      * arping refused to terminate itself after a specified timeout, most
@@ -89,49 +89,31 @@ static void _connectivity_update(void *priv) {
         goto unlock; 
     }
 
-    json_object *jcurrent = nakd_wlan_current();
-    const char *current_ssid = NULL;
-    if (jcurrent != NULL) {
-        current_ssid = nakd_net_ssid(jcurrent);
-        json_object_put(jcurrent);
-    }
-
     int wlan_connected = nakd_wlan_connected();
     if (wlan_connected == -1) {
         nakd_log(L_CRIT, "Can't query WLAN interface UCI configuration.");
         goto unlock;
     } else if (wlan_connected) {
-        /* check if the network is still in range */
-        if (current_ssid == NULL || !nakd_wlan_in_range(current_ssid)) {
-            nakd_log(L_INFO, "\"%s\" WLAN is no longer in range.",
-                                                    current_ssid);
-            nakd_wlan_disconnect();
+        /* let things settle before probing network connectivity */
+        int uptime = nakd_wlan_connection_uptime();
+        if (uptime && uptime < 15)
+            goto unlock;
+
+        char *gw_ip = _gateway_ip(); 
+        nakd_log(L_DEBUG, "ARP-pinging the default gateway: %s", gw_ip);
+        free(gw_ip);
+
+        if (!_arping_gateway(NAKD_WLAN)) {
+            nakd_log(L_DEBUG, "Gateway responsive.");
+            goto unlock;
         } else {
-            /* let things settle before probing network connectivity */
-            int uptime = nakd_wlan_connection_uptime();
-            if (uptime && uptime < 15)
-                goto unlock;
-
-            nakd_wlan_scan();
-
-            char *gw_ip = _gateway_ip(); 
-            nakd_log(L_DEBUG, "\"%s\" WLAN is still in range,"
-                       " arp-pinging the default gateway: %s",
-                                         current_ssid, gw_ip);
-            free(gw_ip);
-            if (!_arping_gateway(NAKD_WLAN)) {
-                nakd_log(L_DEBUG, "Gateway responsive.");
-                goto unlock;
-            } else {
-                nakd_log(L_INFO, "Default gateway doesn't respond to ARP"
-                                                               " ping.");
-                nakd_wlan_disconnect();
-            }
+            nakd_log(L_INFO, "Default gateway doesn't respond to ARP"
+                                                           " ping.");
+            nakd_wlan_disconnect();
         }
-    } else {
-        nakd_wlan_scan();
     }
 
+    nakd_wlan_scan();
     nakd_log(L_INFO, "No Ethernet or wireless connection, looking for WLAN"
                                                             " candidate.");
 
