@@ -190,6 +190,18 @@ static int _is_open(struct tor_cs *s) {
     return s->fd && fcntl(s->fd, F_GETFD) != -1;
 }
 
+static void _set_socket_timeout(int fd, int sec) {
+    struct timeval connect_timeout = {
+        .tv_sec = sec
+    };
+    nakd_assert(!setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO,
+                       (const void *)(&connect_timeout),
+                               sizeof connect_timeout));
+    nakd_assert(!setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO,
+                       (const void *)(&connect_timeout),
+                               sizeof connect_timeout));
+}
+
 static int _open_mgmt_socket(struct tor_cs *s) {
     if (_access_mgmt_socket()) {
         nakd_log(L_WARNING, "Can't access Tor management socket at "
@@ -197,21 +209,27 @@ static int _open_mgmt_socket(struct tor_cs *s) {
         return -1;
     }
 
-    nakd_assert((s->fd = socket(AF_UNIX, SOCK_CLOEXEC | SOCK_STREAM, 0)) != -1);
+    nakd_assert((s->fd = socket(AF_UNIX, SOCK_CLOEXEC | SOCK_STREAM, 0))
+                                                                 != -1);
 
+    _set_socket_timeout(s->fd, 3);
     if (connect(s->fd, (struct sockaddr *)(&_tor_sockaddr),
                                 _tor_sockaddr_len) == -1) {
         nakd_log(L_WARNING, "Couldn't connect to Tor management socket "
                                    SOCK_PATH ". (%s)", strerror(errno));
+        close(s->fd);
+        s->fd = 0;
         return -1;
     }
+    _set_socket_timeout(s->fd, 0);
+
     nakd_assert((s->fp = fdopen(s->fd, "r+")) != NULL);
     setbuf(s->fp, NULL);
 
     nakd_log(L_DEBUG, "Connected to Tor management socket " SOCK_PATH);
-
     if (_tor_command(s, NULL, "AUTHENTICATE")) {
-        nakd_log(L_WARNING, "Couldn't authenticate Tor control connection."); 
+        nakd_log(L_WARNING, "Couldn't authenticate Tor control connection.");
+        _close_mgmt_socket(s);
         return 1;
     }
     return 0;
