@@ -189,7 +189,7 @@ static struct led_condition _default = {
 
 static int _led_init(void) {
     pthread_mutex_init(&_led_mutex, NULL);
-    _led_timer = nakd_timer_add(UPDATE_INTERVAL, _led_sighandler, NULL);
+    _led_timer = nakd_timer_add(UPDATE_INTERVAL, _led_sighandler, NULL, "led");
     nakd_assert(_led_timer != NULL);
 
     struct sigevent sev = {

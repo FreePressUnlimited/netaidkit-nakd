@@ -441,7 +441,7 @@ static int _stage_init(void) {
 
     /* retry automatically */
     _stage_update_timer = nakd_timer_add(STAGE_UPDATE_INTERVAL,
-                                       _stage_update_cb, NULL);
+                              _stage_update_cb, NULL, "stage");
     return 0;
 }
 

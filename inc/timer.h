@@ -8,13 +8,14 @@ typedef void (*nakd_timer_handler)(siginfo_t *timer_info,
 struct nakd_timer {
     timer_t id;
     nakd_timer_handler handler;
+    const char *name;
     void *priv;
 
     int active;
 };
 
 struct nakd_timer *nakd_timer_add(int interval_ms, nakd_timer_handler handler,
-                                                                  void *priv);
+                                                void *priv, const char *name);
 void __nakd_timer_remove(struct nakd_timer *timer);
 void nakd_timer_remove(struct nakd_timer *timer);
 

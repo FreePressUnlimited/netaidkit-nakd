@@ -289,7 +289,7 @@ static int _workqueue_init(void) {
     _setup_cancel_sighandler();
     nakd_workqueue_create(&nakd_wq, NAKD_DEFAULT_WQ_THREADS);
     _timeout_timer = nakd_timer_add(TIMEOUT_CHECK_INTERVAL,
-                                _timeout_sighandler, NULL);
+           _timeout_sighandler, NULL, "workqueue timeout");
     return 0;
 }
 

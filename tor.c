@@ -387,7 +387,7 @@ static int _tor_init(void) {
     _notification_reconnect_timer = nakd_timer_add(
                TOR_NOTIFICATION_RECONNECT_INTERVAL,
                _tor_notification_reconnect_handler,
-                                             NULL);
+               NULL, "tor notification reconnect");
     return 0;
 }
 

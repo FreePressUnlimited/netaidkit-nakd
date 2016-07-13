@@ -176,7 +176,7 @@ static int _connectivity_init(void) {
     pthread_mutex_init(&_connectivity_mutex, NULL);
     pthread_mutex_init(&_connectivity_status_mutex, NULL);
     _connectivity_update_timer = nakd_timer_add(CONNECTIVITY_UPDATE_INTERVAL,
-                                      _connectivity_update_sighandler, NULL);
+                      _connectivity_update_sighandler, NULL, "connectivity");
 
     nakd_event_push(CONNECTIVITY_LOST);
 

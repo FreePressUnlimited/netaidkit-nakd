@@ -411,7 +411,7 @@ static int _netintf_init(void) {
     nakd_netintf_enable_updates();
     _netintf_update(NULL);
     _netintf_update_timer = nakd_timer_add(NETINTF_UPDATE_INTERVAL,
-                                 _netintf_update_sighandler, NULL);
+                      _netintf_update_sighandler, NULL, "netintf");
     return 0;
 }
 
