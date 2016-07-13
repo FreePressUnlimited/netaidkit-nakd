@@ -118,15 +118,18 @@ static void _connectivity_update(void *priv) {
                 if (!nakd_wlan_in_range(current_ssid)) {
                     nakd_wlan_disconnect();
                     json_object_put(jcurrent);
+                } else {
+                    nakd_log(L_DEBUG, "\"%s\" network is still in range,"
+                                                       " continuing...");
                     goto unlock;
                 }
             }
         }
     }
 
-    nakd_wlan_scan();
     nakd_log(L_INFO, "No Ethernet or wireless connection, looking for WLAN"
                                                             " candidate.");
+    nakd_wlan_scan();
 
     json_object *jnetwork = nakd_wlan_candidate();
     if (jnetwork == NULL) {
