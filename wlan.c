@@ -566,8 +566,9 @@ unlock:
 }
 
 int nakd_wlan_scan(void) {
-    nakd_log(L_INFO, "Scanning for wireless networks."); 
+    nakd_log(L_DEBUG, "Scanning for wireless networks."); 
     _wlan_scan_iwinfo();
+    nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
 }
 
 const char *nakd_net_encryption(json_object *jnetwork) {
