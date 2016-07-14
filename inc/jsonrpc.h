@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define NAKD_JSONRPC_RCVMSGLEN_LIMIT 256 * 2 << 10
+
 enum jsonrpc_err {
     PARSE_ERROR = -32700,
     INVALID_REQUEST = -32600,

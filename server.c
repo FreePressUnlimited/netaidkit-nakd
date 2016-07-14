@@ -114,6 +114,12 @@ static int _message_loop(struct connection *conn) {
                 goto ret;
             }
 
+            if (nb_read > NAKD_JSONRPC_RCVMSGLEN_LIMIT) {
+                nakd_log(L_NOTICE, "JSONRPC message longer than %d bytes, "
+                           "disconnecting.", NAKD_JSONRPC_RCVMSGLEN_LIMIT);
+                goto ret;
+            }
+
             if (jerr == json_tokener_continue) {
                 nakd_log(L_DEBUG, "Parsing incoming message, offset: %d",
                                                       jtok->char_offset);
