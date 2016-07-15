@@ -449,11 +449,9 @@ struct openvpn_command{
     json_object *(*impl)(json_object *);
 } static const _openvpn_commands[] = {
     { "state", _call_state },
-    /*
-     *   { "start", _call_start },
-     *   { "stop", _call_stop },
-     *   { "restart", _call_restart }
-     */
+    { "start", _call_start },
+    { "stop", _call_stop },
+    { "restart", _call_restart }
 };
 
 json_object *cmd_openvpn(json_object *jcmd, void *arg) {
