@@ -333,7 +333,7 @@ static int _tor_notification_subscribe(const char *ev_code) {
     return _tor_command(&_tor_notification_s, NULL, "SETEVENTS %s", ev_code);
 }
 
-static void _tor_notification_handler(struct epoll_event *ev) {
+static void _tor_notification_handler(struct epoll_event *ev, void *priv) {
     if (_tor_notification_process(_tor_notification_s.fp)) {
         /* read failed */
         nakd_poll_remove(_tor_notification_s.fd);
@@ -353,7 +353,7 @@ static int _tor_init_notification_socket(void) {
         return 1;
     }
     nakd_assert(!nakd_poll_add(_tor_notification_s.fd, EPOLLIN,
-                                   _tor_notification_handler));
+                             _tor_notification_handler, NULL));
     return 0;
 }
 

@@ -14,10 +14,16 @@ static int _efd;
 static struct nakd_thread *_poll_thread;
 static int _shutdown;
 
+struct handler_data {
+    nakd_poll_handler cb;
+    void *priv;
+};
+
 static void _poll_handle(void *priv) {
     struct epoll_event *ev = priv;
-    nakd_poll_handler cb = ev->data.ptr;
-    cb(ev);
+    struct handler_data *hnd = ev->data.ptr;
+    hnd->cb(ev, hnd->priv);
+    free(priv);
 }
 
 static struct work_desc _poll_handle_desc = {
@@ -33,7 +39,11 @@ static void _poll_loop(struct nakd_thread *thread) {
 
         for (int i = 0; i < n; i++) {
             struct work *io_work = nakd_alloc_work(&_poll_handle_desc);
-            io_work->desc.priv = &_events[i];
+
+            struct epoll_event *evcopy = malloc(sizeof(struct epoll_event));
+            *evcopy = _events[i];
+            io_work->desc.priv = evcopy;
+
             nakd_workqueue_add(nakd_wq, io_work);
         }
     }
@@ -55,15 +65,22 @@ static int _io_cleanup(void) {
     return 0;
 }
 
-int nakd_poll_add(int fd, int events, nakd_poll_handler handler) {
+int nakd_poll_add(int fd, int events, nakd_poll_handler handler, void *priv) {
     struct epoll_event ev;
+
     ev.data.fd = fd;
-    ev.data.ptr = handler;
     ev.events = events;
+
+    struct handler_data *data = malloc(sizeof(struct handler_data));
+    data->cb = handler;
+    data->priv = priv;
+    ev.data.ptr = data;
+
     return epoll_ctl(_efd, EPOLL_CTL_ADD, fd, &ev);
 }
 
 int nakd_poll_remove(int fd) {
+    /* TODO free handler_data */
     return epoll_ctl(_efd, EPOLL_CTL_DEL, fd, NULL);
 }
 
