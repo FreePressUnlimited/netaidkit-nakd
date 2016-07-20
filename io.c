@@ -28,7 +28,9 @@ static void _poll_handle(void *priv) {
 
 static struct work_desc _poll_handle_desc = {
     .impl = _poll_handle,
-    .name = "epoll handler"
+    .name = "epoll handler",
+    .timeout = 5,
+    .cancel_on_timeout = 0,
 };
 
 static void _poll_loop(struct nakd_thread *thread) {

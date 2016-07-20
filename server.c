@@ -163,7 +163,9 @@ static void _handle_message(void *priv) {
 
 static struct work_desc _handle_message_desc = {
     .impl = _handle_message,
-    .name = "jsonrpc handler"
+    .name = "jsonrpc handler",
+    .timeout = 20,
+    .cancel_on_timeout = 0
 };
 
 static void _connection_handler(struct epoll_event *ev, void *priv) {

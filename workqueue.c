@@ -48,7 +48,8 @@ static void __check_timeout(void) {
             if (processing_time > priv->current->desc.timeout / 2) {
                 nakd_log(L_WARNING, "workqueue: \"%s\" is taking too much"
                       " time: %ds", priv->current->desc.name, processing_time);
-                if (processing_time > priv->current->desc.timeout) {
+                if (processing_time > priv->current->desc.timeout &&
+                            priv->current->desc.cancel_on_timeout) {
                     nakd_log(L_WARNING, "workqueue: canceling \"%s\".",
                                                   priv->current->desc.name);
                     __cancel_work(*thr);

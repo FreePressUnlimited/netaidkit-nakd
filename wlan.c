@@ -526,6 +526,7 @@ static struct work_desc _iwinfo_scan_desc = {
     .name = "wlan scan",
     .synchronous = 1,
     .timeout = 10,
+    .cancel_on_timeout = 1,
     .priv = &_iwinfo_scan_priv
 };
 

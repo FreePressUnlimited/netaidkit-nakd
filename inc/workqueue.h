@@ -28,7 +28,9 @@ struct work_desc {
      * only after either impl() returns or canceled() is called due to timeout.
      */
     int synchronous;
+
     int timeout; /* seconds */
+    int cancel_on_timeout;
 };
 
 struct work {
