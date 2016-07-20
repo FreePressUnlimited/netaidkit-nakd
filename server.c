@@ -76,6 +76,11 @@ static void _create_unix_socket(void) {
     /* Create the nakd server socket. */
     nakd_assert((_nakd_sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) != -1);
 
+    /* Enable non-blocking operation. */
+    int flags;
+    nakd_assert((flags = fcntl(_nakd_sockfd, F_GETFL, 0)) != -1);
+    nakd_assert(fcntl(_nakd_sockfd, F_SETFL, flags | O_NONBLOCK) != -1);
+
     /* Check if SOCK_PATH is strncpy safe. */
     nakd_assert(sizeof SOCK_PATH < UNIX_PATH_MAX);
 
@@ -122,9 +127,7 @@ static void _send_response(struct connection *c, json_object *jresponse) {
     const char *jrstrp = jrstr;
     pthread_mutex_lock(&c->write_mutex);
     while (nb_resp = strlen(jrstrp)) {
-        int nb_sent = sendto(c->sockfd, jrstrp, nb_resp, 0,
-                         (struct sockaddr *)(&c->sockaddr),
-                                       sizeof c->sockaddr);
+        int nb_sent = send(c->sockfd, jrstrp, nb_resp, 0);
         if (nb_sent == -1) {
             if (errno == EINTR)
                 continue;
@@ -169,26 +172,17 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
     struct connection *c = priv;
     char message_buf[4096];
 
-    pthread_mutex_lock(&c->refcount_mutex);
-
-    if (_check_epollerr(ev) || ev->events & EPOLLHUP) {
+    if (_check_epollerr(ev)) {
         _connection_put(c);
         return;
     }
     nakd_assert(ev->events & EPOLLIN);
 
-    if (c->nb_read > NAKD_JSONRPC_RCVMSGLEN_LIMIT) {
-        nakd_log(L_NOTICE, "JSONRPC message longer than %d bytes, "
-                   "disconnecting.", NAKD_JSONRPC_RCVMSGLEN_LIMIT);
-        _connection_put(c);
-        return;
-    }
-
     int nb_read = 0;
     socklen_t c_len = sizeof c->sockaddr;
     for (;;) {
-        int s = recvfrom(c->sockfd, message_buf, sizeof message_buf, 0,
-                            (struct sockaddr *)(&c->sockaddr), &c_len);
+        int s = recvfrom(c->sockfd, message_buf, sizeof message_buf, MSG_DONTWAIT,
+                                       (struct sockaddr *)(&c->sockaddr), &c_len);
         if (s == -1) {
             if (errno == EINTR)
                 continue;
@@ -199,16 +193,23 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
                                         strerror(errno));
             _connection_put(c);
             return;
-        } else if (!nb_read) {
+        } else if (!s) {
             nakd_log(L_DEBUG, "Closing connection - client hung up.");
             _connection_put(c);
             return;
         }
         nb_read += s;
+
+        if (nb_read > NAKD_JSONRPC_RCVMSGLEN_LIMIT) {
+            nakd_log(L_NOTICE, "JSONRPC message longer than %d bytes, "
+                       "disconnecting.", NAKD_JSONRPC_RCVMSGLEN_LIMIT);
+            _connection_put(c);
+            return;
+        }
     }
     c->nb_read += nb_read;
 
-     /* partial JSON strings are stored in tokener context */
+    /* partial JSON strings are stored in tokener context */
     json_object *jmsg = json_tokener_parse_ex(c->jtok, message_buf, nb_read);
     enum json_tokener_error jerr = json_tokener_get_error(c->jtok);
 
@@ -295,10 +296,6 @@ static void _accept_handler(struct epoll_event *ev, void *priv) {
             nakd_log(L_CRIT, "Couldn't accept a connection: %s", strerror(errno));
             return;
         }
-
-        int flags;
-        nakd_assert((flags = fcntl(c_sock, F_GETFL, 0)) != -1);
-        nakd_assert(fcntl(c_sock, F_SETFL, flags | O_NONBLOCK) != -1);
 
         nakd_log(L_DEBUG, "Connection accepted, %d connection(s) currently "
                                       "active.", nakd_active_connections());
