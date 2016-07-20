@@ -22,7 +22,6 @@
 #include "io.h"
 
 #define MAX_CONNECTIONS     64
-#define CONNECTION_TIMEOUT 2 /* seconds */
 #define SOCK_DIR       "/run/nakd"
 #define SOCK_PATH      SOCK_DIR "/nakd.sock"
 
@@ -100,7 +99,7 @@ static void _create_unix_socket(void) {
     nakd_assert(chmod(SOCK_PATH, 0777) != -1);
 }
 
-int _check_epollerr(struct epoll_event *ev) {
+static int _check_epollerr(struct epoll_event *ev) {
     if (ev->events & EPOLLERR) {
         int       error = 0;
         socklen_t errlen = sizeof(error);
@@ -185,23 +184,28 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
         return;
     }
 
+    int nb_read = 0;
     socklen_t c_len = sizeof c->sockaddr;
-    int nb_read = recvfrom(c->sockfd, message_buf, sizeof message_buf, 0,
-                             (struct sockaddr *)(&c->sockaddr), &c_len);
-    if (nb_read == -1) {
-        if (errno == EINTR || errno == EAGAIN)
+    for (;;) {
+        int s = recvfrom(c->sockfd, message_buf, sizeof message_buf, 0,
+                            (struct sockaddr *)(&c->sockaddr), &c_len);
+        if (s == -1) {
+            if (errno == EINTR)
+                continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                break;
+
+            nakd_log(L_NOTICE, "Closing connection (%s)",
+                                        strerror(errno));
+            _connection_put(c);
             return;
-
-        nakd_log(L_NOTICE, "Closing connection (%s)",
-                                    strerror(errno));
-        _connection_put(c);
-        return;
-    } else if (!nb_read) {
-        nakd_log(L_DEBUG, "Closing connection - client hung up.");
-        _connection_put(c);
-        return;
+        } else if (!nb_read) {
+            nakd_log(L_DEBUG, "Closing connection - client hung up.");
+            _connection_put(c);
+            return;
+        }
+        nb_read += s;
     }
-
     c->nb_read += nb_read;
 
      /* partial JSON strings are stored in tokener context */
@@ -237,7 +241,7 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
     }
 }
 
-void _init_connection(int sfd, struct sockaddr_un sa) {
+static void _init_connection(int sfd, struct sockaddr_un sa) {
     struct connection *c;
     nakd_assert((c = calloc(1, sizeof(struct connection))) != NULL);
 
@@ -251,58 +255,62 @@ void _init_connection(int sfd, struct sockaddr_un sa) {
     pthread_mutex_init(&c->write_mutex, NULL);
 
     nakd_assert((c->jtok = json_tokener_new()) != NULL);
-    nakd_assert(!nakd_poll_add(sfd, EPOLLIN, _connection_handler, c));
+    nakd_assert(!nakd_poll_add(sfd, EPOLLIN | EPOLLET,
+                             _connection_handler, c));
 }
 
 static void _accept_handler(struct epoll_event *ev, void *priv) {
     if (_check_epollerr(ev))
         return;
 
-    struct timespec ts;
-    nakd_assert(!clock_gettime(CLOCK_MONOTONIC, &ts));
-    ts.tv_sec += CONNECTION_TIMEOUT;
-    if (sem_timedwait(&_connections_sem, &ts)) {
-        if (errno == ETIMEDOUT) {
-            nakd_log(L_INFO, "Out of connection slots.");
+    if (sem_trywait(&_connections_sem)) {
+        if (errno == EAGAIN) {
+            nakd_log(L_INFO, "Out of UNIX socket connection slots.");
             return;
         }
         nakd_log(L_CRIT, "sem_timedwait(): %s", strerror(errno));
         return;
     }
 
+    int c_sock;
     struct sockaddr_un c_sockaddr;
     socklen_t len = sizeof c_sockaddr;
-    int c_sock = accept4(_nakd_sockfd, (struct sockaddr *)(&c_sockaddr), &len,
-                                                                SOCK_CLOEXEC);
+    for (;;) {
+        int c_sock = accept4(_nakd_sockfd, (struct sockaddr *)(&c_sockaddr), &len,
+                                                                    SOCK_CLOEXEC);
 
-    if (c_sock == -1) {
-        sem_post(&_connections_sem);
-        if (errno == EINTR)
-            return;
-        if (errno == EBADF) {
-            nakd_log(L_DEBUG, "accept4() returned \"%s\", shutting down...",
-                                                           strerror(errno));
-            nakd_poll_remove(_nakd_sockfd);
+        if (c_sock == -1) {
+            sem_post(&_connections_sem);
+            if (errno == EINTR)
+                continue;
+            if (errno == EBADF) {
+                nakd_log(L_DEBUG, "accept4() returned \"%s\", shutting down...",
+                                                               strerror(errno));
+                nakd_poll_remove(_nakd_sockfd);
+                return;
+            }
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                return;
+
+            nakd_log(L_CRIT, "Couldn't accept a connection: %s", strerror(errno));
             return;
         }
 
-        nakd_log(L_CRIT, "Couldn't accept a connection: %s", strerror(errno));
-        return;
+        int flags;
+        nakd_assert((flags = fcntl(c_sock, F_GETFL, 0)) != -1);
+        nakd_assert(fcntl(c_sock, F_SETFL, flags | O_NONBLOCK) != -1);
+
+        nakd_log(L_DEBUG, "Connection accepted, %d connection(s) currently "
+                                      "active.", nakd_active_connections());
+        _init_connection(c_sock, c_sockaddr);
     }
-
-    int flags;
-    nakd_assert((flags = fcntl(c_sock, F_GETFL, 0)) != -1);
-    nakd_assert(fcntl(c_sock, F_SETFL, flags | O_NONBLOCK) != -1);
-
-    nakd_log(L_DEBUG, "Connection accepted, %d connection(s) currently "
-                                  "active.", nakd_active_connections());
-    _init_connection(c_sock, c_sockaddr);
 }
 
 static void _listen(void) {
     /* Listen on local domain socket. */
     nakd_assert(listen(_nakd_sockfd, MAX_CONNECTIONS) != -1);
-    nakd_assert(!nakd_poll_add(_nakd_sockfd, EPOLLIN, _accept_handler, NULL));
+    nakd_assert(!nakd_poll_add(_nakd_sockfd, EPOLLIN | EPOLLET,
+                                       _accept_handler, NULL));
 }
 
 int nakd_active_connections(void) {
