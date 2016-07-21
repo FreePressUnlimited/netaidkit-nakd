@@ -141,7 +141,6 @@ static void _send_response(struct connection *c, json_object *jresponse) {
 
 unlock:
     pthread_mutex_unlock(&c->write_mutex);
-    json_object_put(jresponse);
 }
 
 struct message_handler_data {
@@ -154,8 +153,11 @@ static void _handle_message(void *priv) {
 
     /* jresponse will be NULL while handling notifications. */
     json_object *jresponse = nakd_handle_message(d->jmsg);
-    if (jresponse != NULL)
+    if (jresponse != NULL) {
         _send_response(d->c, jresponse);
+        json_object_put(jresponse);
+    }
+    json_object_put(d->jmsg);
 
     _connection_put(d->c);
     free(priv);
