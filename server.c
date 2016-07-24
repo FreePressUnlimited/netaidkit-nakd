@@ -291,28 +291,31 @@ static void _accept_handler(struct epoll_event *ev, void *priv) {
     for (;;) {
         int c_sock = accept4(_nakd_sockfd, (struct sockaddr *)(&c_sockaddr), &len,
                                                                     SOCK_CLOEXEC);
-
         if (c_sock == -1) {
-            sem_post(&_connections_sem);
             if (errno == EINTR)
                 continue;
+
             if (errno == EBADF) {
                 nakd_log(L_DEBUG, "accept4() returned \"%s\", shutting down...",
                                                                strerror(errno));
                 nakd_poll_remove(_nakd_sockfd);
-                return;
+                goto free_conn;
             }
             if (errno == EAGAIN || errno == EWOULDBLOCK)
-                return;
+                goto free_conn;
 
             nakd_log(L_CRIT, "Couldn't accept a connection: %s", strerror(errno));
-            return;
+            goto free_conn;
         }
 
         nakd_log(L_DEBUG, "Connection accepted, %d connection(s) currently "
                                       "active.", nakd_active_connections());
         _init_connection(c_sock, c_sockaddr);
     }
+
+    return;
+free_conn:
+    sem_post(&_connections_sem);
 }
 
 static void _listen(void) {
