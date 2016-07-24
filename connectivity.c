@@ -67,9 +67,14 @@ static char *_gateway_ip(void) {
 }
 
 static void _update_status(void) {
+    nakd_log(L_DEBUG, "Updating local connectivity status...");
+    int local = nakd_local_connectivity();
+    nakd_log(L_DEBUG, "Updating Internet connectivity status...");
+    int internet = nakd_internet_connectivity();
+
     pthread_mutex_lock(&_connectivity_status_mutex);
-    _connectivity_local = nakd_local_connectivity();
-    _connectivity_internet = nakd_internet_connectivity(); 
+    _connectivity_local = local;
+    _connectivity_internet = internet; 
     pthread_mutex_unlock(&_connectivity_status_mutex);
 }
 
@@ -156,6 +161,7 @@ unlock:
 static struct work_desc _update_desc = {
     .impl = _connectivity_update,
     .name = "connectivity update",
+    .timeout = 20
 };
 
 static void _connectivity_update_sighandler(siginfo_t *timer_info,
