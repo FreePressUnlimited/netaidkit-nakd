@@ -250,7 +250,8 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
         json_tokener_reset(c->jtok);
 
         jresponse = nakd_jsonrpc_response_error(NULL, PARSE_ERROR, NULL);
-        _send_response(c, jresponse);        
+        _send_response(c, jresponse); 
+        json_object_put(jresponse);
     }
 }
 
