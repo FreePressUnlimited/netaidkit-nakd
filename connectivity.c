@@ -120,7 +120,8 @@ static void _connectivity_update(void *priv) {
                     json_object_put(jcurrent);
                 } else {
                     nakd_log(L_DEBUG, "\"%s\" network is still in range,"
-                                                       " continuing...");
+                                         " continuing...", current_ssid);
+                    json_object_put(jcurrent);
                     goto unlock;
                 }
             }
