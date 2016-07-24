@@ -44,15 +44,19 @@ static void __check_timeout(void) {
         struct worker_thread_priv *priv = (*thr)->priv;
         if (priv->current != NULL && priv->current->desc.timeout) {
             int processing_time = now - priv->current->start_time;
+            struct work_desc *wdesc = &priv->current->desc;
 
-            if (processing_time > priv->current->desc.timeout / 2) {
+            if (processing_time > wdesc->timeout / 2) {
                 nakd_log(L_WARNING, "workqueue: \"%s\" is taking too much"
-                      " time: %ds", priv->current->desc.name, processing_time);
-                if (processing_time > priv->current->desc.timeout &&
-                            priv->current->desc.cancel_on_timeout) {
-                    nakd_log(L_WARNING, "workqueue: canceling \"%s\".",
-                                                  priv->current->desc.name);
-                    __cancel_work(*thr);
+                              " time: %ds", wdesc->name, processing_time);
+                if (processing_time > wdesc->timeout) {
+                    if (wdesc->timeout_cb != NULL)
+                        wdesc->timeout_cb(wdesc->priv);
+                    if (wdesc->cancel_on_timeout) {
+                        nakd_log(L_WARNING, "workqueue: canceling \"%s\".",
+                                                              wdesc->name);
+                        __cancel_work(*thr);
+                    }
                 }
             }
         }

@@ -18,7 +18,12 @@ enum work_status {
 
 struct work_desc {
     nakd_work_func impl;
-    /* Called when entry has timed out or was canceled. */
+    /* Called on timeout */ 
+    nakd_work_func timeout_cb;
+    /*
+     * Called just before the entry has been canceled due to timeout, if
+     * cancel_on_timeout is set.
+     */
     nakd_work_func canceled;
     void *priv;   
     const char *name;

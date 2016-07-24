@@ -163,8 +163,16 @@ static void _handle_message(void *priv) {
     free(priv);
 }
 
+static void _jsonrpc_timeout(void *priv) {
+    struct message_handler_data *d = priv;
+    const char *jstr = json_object_to_json_string_ext(d->jmsg,
+                                     JSON_C_TO_STRING_PRETTY);
+    nakd_log(L_CRIT, "RPC timeout while handling: %s", jstr);
+}
+
 static struct work_desc _handle_message_desc = {
     .impl = _handle_message,
+    .timeout_cb = _jsonrpc_timeout,
     .name = "jsonrpc handler",
     .timeout = 20,
     .cancel_on_timeout = 0
