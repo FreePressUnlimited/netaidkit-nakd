@@ -54,7 +54,8 @@ static void _connection_get(struct connection *c) {
 
 static void _connection_put(struct connection *c) {
     pthread_mutex_lock(&c->refcount_mutex);
-    int s = --c->refcount;
+    int s;
+    nakd_assert((s = --c->refcount) >= 0);
     pthread_mutex_unlock(&c->refcount_mutex);
     if (s)
         return;
