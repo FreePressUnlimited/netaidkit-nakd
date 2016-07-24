@@ -186,9 +186,9 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
         while (!waitpid(pid, &wstatus, WUNTRACED | WNOHANG)) {
             time_t timestamp = monotonic_time();
             if (timeout_kill && (timestamp > start_timestamp + timeout_kill))
-                kill(-pid, SIGKILL);
+                kill(pid, SIGKILL);
             else if (timeout_term && (timestamp > start_timestamp + timeout_term))
-                kill(-pid, SIGTERM);
+                kill(pid, SIGTERM);
             sleep(1);
         }
 
