@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/epoll.h>
+#include <pthread.h>
 #include "io.h"
 #include "module.h"
 #include "thread.h"

@@ -33,9 +33,11 @@ struct connection {
     json_tokener *jtok;
 
     int refcount;
-    pthread_mutex_t refcount_mutex;
+    pthread_mutex_t mutex;
 
     pthread_mutex_t write_mutex;
+
+    int shutdown;
 };
 
 static struct sockaddr_un _nakd_sockaddr;
@@ -47,28 +49,50 @@ static sem_t _connections_sem;
 static int _server_shutdown;
 
 static void _connection_get(struct connection *c) {
-    pthread_mutex_lock(&c->refcount_mutex);
+    pthread_mutex_lock(&c->mutex);
     c->refcount++;
-    pthread_mutex_unlock(&c->refcount_mutex);
+    pthread_mutex_unlock(&c->mutex);
 }
 
-static void _connection_put(struct connection *c) {
-    pthread_mutex_lock(&c->refcount_mutex);
-    int s;
-    nakd_assert((s = --c->refcount) >= 0);
-    pthread_mutex_unlock(&c->refcount_mutex);
-    if (s)
-        return;
-
-    pthread_mutex_destroy(&c->refcount_mutex);
+static void _connection_free(struct connection *c) {
+    pthread_mutex_destroy(&c->mutex);
     pthread_mutex_destroy(&c->write_mutex);
 
-    nakd_poll_remove(c->sockfd);
     close(c->sockfd);
     json_tokener_free(c->jtok);
     free(c);
+}
 
+static void _connection_put(struct connection *c) {
+    pthread_mutex_lock(&c->mutex);
+    int s;
+    nakd_assert((s = --c->refcount) >= 0);
+    pthread_mutex_unlock(&c->mutex);
+
+    if (!s) {
+        nakd_assert(c->shutdown);
+        _connection_free(c);
+    }
+}
+
+static void _connection_shutdown(struct connection *c) {
+    pthread_mutex_lock(&c->mutex);
+    if (c->shutdown)
+        goto unlock;
+
+    nakd_poll_remove(c->sockfd);
+    if (shutdown(c->sockfd, SHUT_RD))
+        nakd_log(L_CRIT, "shutdown() failed: %s", strerror(errno));
     sem_post(&_connections_sem);
+
+    c->shutdown = 1;
+    pthread_mutex_unlock(&c->mutex);
+
+    /* reader refcount */
+    _connection_put(c);
+    return;
+unlock:
+    pthread_mutex_unlock(&c->mutex);
 }
 
 static void _create_unix_socket(void) {
@@ -186,7 +210,7 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
     char message_buf[4096];
 
     if (_check_epollerr(ev)) {
-        _connection_put(c);
+        _connection_shutdown(c);
         return;
     }
     nakd_assert(ev->events & EPOLLIN);
@@ -204,11 +228,11 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
 
             nakd_log(L_NOTICE, "Closing connection (%s)",
                                         strerror(errno));
-            _connection_put(c);
+            _connection_shutdown(c);
             return;
         } else if (!s) {
             nakd_log(L_DEBUG, "Closing connection - client hung up.");
-            _connection_put(c);
+            _connection_shutdown(c);
             return;
         }
         nb_read += s;
@@ -216,7 +240,7 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
         if (nb_read > NAKD_JSONRPC_RCVMSGLEN_LIMIT) {
             nakd_log(L_NOTICE, "JSONRPC message longer than %d bytes, "
                        "disconnecting.", NAKD_JSONRPC_RCVMSGLEN_LIMIT);
-            _connection_put(c);
+            _connection_shutdown(c);
             return;
         }
     }
@@ -266,7 +290,7 @@ static void _init_connection(int sfd, struct sockaddr_un sa) {
     /* reader reference */
     c->refcount = 1;
 
-    pthread_mutex_init(&c->refcount_mutex, NULL);
+    pthread_mutex_init(&c->mutex, NULL);
     pthread_mutex_init(&c->write_mutex, NULL);
 
     nakd_assert((c->jtok = json_tokener_new()) != NULL);
