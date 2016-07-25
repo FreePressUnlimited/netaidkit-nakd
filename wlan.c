@@ -1334,7 +1334,7 @@ json_object *cmd_wlan_connecting(json_object *jcmd, void *arg) {
 static struct nakd_module module_wlan = {
     .name = "wlan",
     .deps = (const char *[]){ "config", "uci", "ubus", "netintf", "workqueue",
-                                                "notification", "led", NULL },
+                                     "notification", "led", "command", NULL },
     .init = _wlan_init,
     .cleanup = _wlan_cleanup 
 };

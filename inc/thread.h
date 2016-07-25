@@ -8,7 +8,8 @@ struct nakd_thread;
 typedef void (*nakd_thread_routine)(struct nakd_thread *);
 typedef void (*nakd_thread_shutdown)(struct nakd_thread *);
 struct nakd_thread {
-    pthread_t tid;
+    pthread_t ptid;
+    long tid;
 
     nakd_thread_routine routine;
     nakd_thread_shutdown shutdown;

@@ -2,6 +2,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 #include "thread.h"
 #include "log.h"
 #include "misc.h"
@@ -96,6 +98,8 @@ static void *_thread_setup(void *priv) {
     pthread_cleanup_push(_cleanup_thread, (void *)(thr));
     pthread_setspecific(_tls_data, (void *)(thr));
 
+    thr->tid = syscall(SYS_gettid);
+
     thr->routine(thr);
     pthread_cleanup_pop(1);
     return NULL;
@@ -116,7 +120,7 @@ static int _thread_create(nakd_thread_routine start,
     thr->shutdown = shutdown;
     thr->priv = priv;
 
-    if (pthread_create(&thr->tid, &attr, _thread_setup, (void *)(thr)))
+    if (pthread_create(&thr->ptid, &attr, _thread_setup, (void *)(thr)))
         return 1;
 
     thr->active = 1;
@@ -156,7 +160,7 @@ static int __thread_kill(struct nakd_thread *thr) {
         return 1;
     }
 
-    int s = pthread_kill(thr->tid, NAKD_THREAD_SHUTDOWN_SIGNAL);
+    int s = pthread_kill(thr->ptid, NAKD_THREAD_SHUTDOWN_SIGNAL);
     if (s < 0) {
         if (s == -ESRCH) {
             nakd_log(L_NOTICE, "Tried to shutdown nonexistent thread %d.", thr->tid);
@@ -167,7 +171,7 @@ static int __thread_kill(struct nakd_thread *thr) {
     }
 
     pthread_attr_t attr;
-    pthread_getattr_np(thr->tid, &attr);
+    pthread_getattr_np(thr->ptid, &attr);
     
     int detached;
     pthread_attr_getdetachstate(&attr, &detached);
@@ -176,7 +180,7 @@ static int __thread_kill(struct nakd_thread *thr) {
         nakd_log(L_DEBUG, "Sent %s to joinable thread %d.",
           strsignal(NAKD_THREAD_SHUTDOWN_SIGNAL), thr->tid);
         nakd_log(L_DEBUG, "Waiting for thread %d to clean up.", thr->tid);
-        s = pthread_join(thr->tid, NULL);
+        s = pthread_join(thr->ptid, NULL);
         if (s < 0)
             nakd_terminate(L_CRIT, "pthread_join(): %s", strerror(s));
     } else if (detached == PTHREAD_CREATE_DETACHED) {

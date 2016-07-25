@@ -15,6 +15,8 @@
 #include "log.h"
 #include "jsonrpc.h"
 #include "misc.h"
+#include "module.h"
+#include "command.h"
 
 #define PIPE_READ       0
 #define PIPE_WRITE      1
@@ -279,6 +281,12 @@ int nakd_traverse_directory(const char *dirpath, nakd_traverse_cb cb,
     return status;
 }
 
+struct nakd_module module_shell = {
+    .name = "shell",
+    .deps = (const char *[]){ "command", NULL }
+};
+NAKD_DECLARE_MODULE(module_shell);
+
 json_object *cmd_shell(json_object *jcmd, struct cmd_shell_spec *spec) {
     json_object *jresponse;
     json_object *jparams;
@@ -327,3 +335,6 @@ response:
     nakd_log(L_DEBUG, "Returning response.");
     return jresponse;
 }
+
+struct nakd_command update = CMD_SHELL_NAKD("update", "do_update.sh");
+NAKD_DECLARE_COMMAND(update);

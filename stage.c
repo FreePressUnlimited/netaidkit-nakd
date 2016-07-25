@@ -625,7 +625,7 @@ json_object *cmd_stage_list(json_object *jcmd, void *param) {
 static struct nakd_module module_stage = {
     .name = "stage",
     .deps = (const char *[]){ "workqueue", "connectivity", "notification",
-                                  "timer", "config", "uci", "led", NULL },
+                       "timer", "config", "uci", "led", "command", NULL },
     .init = _stage_init,
     .cleanup = _stage_cleanup
 };

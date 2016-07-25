@@ -370,7 +370,8 @@ unlock:
 
 static struct nakd_module module_netintf = {
     .name = "netintf",
-    .deps = (const char *[]){ "uci", "event", NULL },
+    .deps = (const char *[]){ "uci", "ubus", "event", "timer", "workqueue",
+                                                         "command", NULL },
     .init = _netintf_init,
     .cleanup = _netintf_cleanup
 };

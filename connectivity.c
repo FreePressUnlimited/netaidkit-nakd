@@ -246,11 +246,10 @@ enum nakd_connectivity nakd_connectivity(void) {
 static struct nakd_module module_connectivity = {
     .name = "connectivity",
     .deps = (const char *[]){ "workqueue", "event", "timer", "netintf", "wlan",
-                                   "notification" /* event handlers */, NULL },
+                        "notification" /* event handlers */, "command", NULL },
     .init = _connectivity_init,
     .cleanup = _connectivity_cleanup 
 };
-
 NAKD_DECLARE_MODULE(module_connectivity);
 
 json_object *cmd_connectivity(json_object *jcmd, void *arg) {

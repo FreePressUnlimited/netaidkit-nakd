@@ -398,6 +398,14 @@ static int _tor_cleanup(void) {
     return 0;
 }
 
+static struct nakd_module module_tor = {
+    .name = "tor",
+    .deps = (const char *[]){ "timer", "workqueue", "command", NULL },
+    .init = _tor_init,
+    .cleanup = _tor_cleanup
+};
+NAKD_DECLARE_MODULE(module_tor);
+
 static struct nakd_command tor = {
     .name = "tor",
     .desc = "Manage Tor daemon",
@@ -405,14 +413,7 @@ static struct nakd_command tor = {
                "\"Command, as specified in TC v1, subject to ACLs\", "
                                                         "\"id\": 42}",
     .handler = cmd_tor,
-    .access = ACCESS_USER
+    .access = ACCESS_USER,
+    .module = &module_tor
 };
 NAKD_DECLARE_COMMAND(tor);
-
-static struct nakd_module module_tor = {
-    .name = "tor",
-    .deps = (const char *[]){"timer", "workqueue", NULL},
-    .init = _tor_init,
-    .cleanup = _tor_cleanup
-};
-NAKD_DECLARE_MODULE(module_tor);

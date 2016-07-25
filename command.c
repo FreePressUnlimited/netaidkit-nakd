@@ -8,6 +8,8 @@
 #include "shell.h"
 #include "log.h"
 #include "jsonrpc.h"
+#include "module.h"
+#include "workqueue.h"
 
 /* see: command.ld, command.h */
 extern struct nakd_command *__nakd_command_list[];
@@ -21,22 +23,73 @@ struct nakd_command *nakd_get_command(const char *cmd_name) {
     return NULL;
 }
 
-json_object *nakd_call_command(const char *cmd_name, json_object *jcmd) {
+struct call_command_data {
+    struct nakd_command *cmd;
+    json_object *jcmd;
+    nakd_response_cb cb;
+    nakd_timeout_cb timeout_cb;
+    void *priv;
+};
+
+static void _call_command(void *priv) {
+    struct call_command_data *d = priv;
+    json_object *jresponse;
+
+    if (d->cmd->module != NULL) {
+        if (nakd_module_state(d->cmd->module) != NAKD_INITIALIZED) {
+            jresponse = nakd_jsonrpc_response_error(d->jcmd, INTERNAL_ERROR,
+                          "Internal error - module %s not initialized yet, "
+                                 "please try later.", d->cmd->module->name);
+            goto response;
+        }
+    }
+
+    jresponse = d->cmd->handler(d->jcmd, d->cmd->priv);
+
+response:
+    if (d->cb != NULL)
+        d->cb(jresponse, d->priv);
+    free(priv);
+}
+
+static void _call_command_timeout(void *priv) {
+    struct call_command_data *d = priv;
+    if (d->timeout_cb != NULL)
+        d->timeout_cb(d->priv);
+}
+
+static struct work_desc _call_command_desc = {
+    .impl = _call_command,
+    .timeout_cb = _call_command_timeout,
+    .name = "RPC command",
+    .timeout = 20,
+    .cancel_on_timeout = 0
+};
+
+void nakd_call_command(const char *cmd_name, json_object *jcmd,
+               nakd_response_cb cb, nakd_timeout_cb timeout_cb,
+                                                  void *priv) {
     struct nakd_command *cmd = nakd_get_command(cmd_name);
     if (cmd == NULL) {
         nakd_log(L_NOTICE, "Couldn't find command %s.", cmd_name);
-        return nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
-                           "Invalid request - no such command.");
+        json_object *jresponse = nakd_jsonrpc_response_error(jcmd,
+           INVALID_REQUEST, "Invalid request - no such command: %s.",
+                                                           cmd_name);
+        if (cb != NULL)
+            cb(jresponse, priv);
+        return;
     }
 
-    if (cmd->module != NULL) {
-        if (nakd_module_state(cmd->module) != NAKD_INITIALIZED)
-            return nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                  "Internal error - module %s not initialized yet, "
-                            "please try later.", cmd->module->name);
-    }
+    struct call_command_data *d = malloc(sizeof(struct call_command_data));
+    d->jcmd = jcmd;
+    d->cb = cb;
+    d->timeout_cb = timeout_cb;
+    d->priv = priv;
 
-    return cmd->handler(jcmd, cmd->priv);
+    struct work *command_work = nakd_alloc_work(&_call_command_desc);
+    command_work->desc.priv = d;
+
+    nakd_workqueue_add(nakd_wq, command_work);
 }
 
 static json_object *_desc_command(struct nakd_command *cmd) {
@@ -69,14 +122,18 @@ json_object *cmd_list(json_object *jcmd, void *arg) {
     return nakd_jsonrpc_response_success(jcmd, jresult);
 }
 
-struct nakd_command list = {
+struct nakd_module module_command = {
+    .name = "command",
+    .deps = (const char *[]){ "workqueue", NULL }
+};
+NAKD_DECLARE_MODULE(module_command);
+
+static struct nakd_command list = {
     .name = "list",
     .desc = "List available commands.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"list\", \"id\": 42}",
     .handler = cmd_list,
-    .access = ACCESS_USER
+    .access = ACCESS_USER,
+    .module = &module_command
 };
 NAKD_DECLARE_COMMAND(list);
-
-struct nakd_command update = CMD_SHELL_NAKD("update", "do_update.sh");
-NAKD_DECLARE_COMMAND(update);

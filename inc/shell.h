@@ -2,6 +2,7 @@
 #define NAKD_SHELL_H
 #include <json-c/json.h>
 #include "command.h"
+#include "module.h"
 
 #define MAX_SHELL_RESULT_LEN 4096
 
@@ -24,21 +25,27 @@ struct cmd_shell_spec {
     const char *cwd;
 };
 
+json_object *cmd_shell(json_object *jcmd, struct cmd_shell_spec *spec);
+extern struct nakd_module module_shell;
+
 #define CMD_SHELL_ARGV(cname, cwd, path, argv...) \
     { .name = cname, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
+      .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ path, argv, NULL }, cwd } \
     }
 #define CMD_SHELL(cname, cwd, path) \
     { .name = cname, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
+      .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ path, NULL }, cwd } \
     }
 #define CMD_SHELL_NAKD_ARGV(cname, path, argv...) \
     { .name = cname, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
+      .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ NAKD_SCRIPT(path), argv, NULL }, \
                                          NAKD_SCRIPT_PATH } \
@@ -46,10 +53,9 @@ struct cmd_shell_spec {
 #define CMD_SHELL_NAKD(cname, path) \
     { .name = cname, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
+      .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ NAKD_SCRIPT(path), NULL }, NAKD_SCRIPT_PATH } \
     }
-
-json_object *cmd_shell(json_object *jcmd, struct cmd_shell_spec *spec);
 
 #endif

@@ -18,8 +18,8 @@
 #include "misc.h"
 #include "jsonrpc.h"
 #include "module.h"
-#include "workqueue.h"
 #include "io.h"
+#include "command.h"
 
 #define MAX_CONNECTIONS     64
 #define SOCK_DIR       "/run/nakd"
@@ -170,38 +170,25 @@ unlock:
 
 struct message_handler_data {
     struct connection *c;
-    json_object *jmsg;
+    json_object *jrequest;
 };
 
-static void _handle_message(void *priv) {
+static void _rpc_completion(json_object *jresponse, void *priv) {
     struct message_handler_data *d = priv;
-
-    /* jresponse will be NULL while handling notifications. */
-    json_object *jresponse = nakd_handle_message(d->jmsg);
     if (jresponse != NULL) {
         _send_response(d->c, jresponse);
         json_object_put(jresponse);
     }
-    json_object_put(d->jmsg);
-
     _connection_put(d->c);
-    free(priv);
+    free(d);
 }
 
 static void _jsonrpc_timeout(void *priv) {
     struct message_handler_data *d = priv;
-    const char *jstr = json_object_to_json_string_ext(d->jmsg,
-                                     JSON_C_TO_STRING_PRETTY);
+    const char *jstr = json_object_to_json_string_ext(d->jrequest,
+                                         JSON_C_TO_STRING_PRETTY);
     nakd_log(L_CRIT, "RPC timeout while handling: %s", jstr);
 }
-
-static struct work_desc _handle_message_desc = {
-    .impl = _handle_message,
-    .timeout_cb = _jsonrpc_timeout,
-    .name = "jsonrpc handler",
-    .timeout = 20,
-    .cancel_on_timeout = 0
-};
 
 static void _connection_handler(struct epoll_event *ev, void *priv) {
     /* level-triggered epoll, one calling thread */
@@ -260,22 +247,20 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
                                              JSON_C_TO_STRING_PRETTY);
         nakd_log(L_DEBUG, "Got a message: %s", jmsg_string);
 
-        struct work *jsonrpc_work = nakd_alloc_work(&_handle_message_desc);
-
-        struct message_handler_data *d = malloc(sizeof(struct message_handler_data));
+        struct message_handler_data *d;
+        nakd_assert((d = malloc(sizeof(struct message_handler_data))) != NULL);
         d->c = c;
-        d->jmsg = jmsg, json_object_get(jmsg);
-        jsonrpc_work->desc.priv = d;
+        d->jrequest = jmsg;
 
         _connection_get(c);
-        nakd_workqueue_add(nakd_wq, jsonrpc_work);
+        nakd_handle_message(jmsg, _rpc_completion, _jsonrpc_timeout, d);
     } else {
         nakd_log(L_DEBUG, "Couldn't parse JSONRPC message: %s",
                                 json_tokener_error_desc(jerr));
         json_tokener_reset(c->jtok);
 
         jresponse = nakd_jsonrpc_response_error(NULL, PARSE_ERROR, NULL);
-        _send_response(c, jresponse); 
+        _send_response(c, jresponse);
         json_object_put(jresponse);
     }
 }
@@ -381,7 +366,7 @@ static int _server_cleanup(void) {
 
 static struct nakd_module module_server = {
     .name = "server",
-    .deps = (const char *[]){ "workqueue", "io", NULL },
+    .deps = (const char *[]){ "command", "io", NULL },
     .init = _server_init,
     .cleanup = _server_cleanup
 };

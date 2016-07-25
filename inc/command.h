@@ -4,6 +4,8 @@
 #include "module.h"
 
 typedef json_object *(*nakd_cmd_handler)(json_object *jcmd, void *priv);
+typedef void (*nakd_response_cb)(json_object *jresp, void *priv);
+typedef void (*nakd_timeout_cb)(void *priv);
 
 enum nakd_access_level {
     ACCESS_ROOT,
@@ -22,7 +24,9 @@ struct nakd_command {
 };
 
 struct nakd_command *nakd_get_command(const char *name);
-json_object *nakd_call_command(const char *name, json_object *jcmd);
+void nakd_call_command(const char *name, json_object *jcmd,
+           nakd_response_cb cb, nakd_timeout_cb timeout_cb,
+                                               void *priv);
 
 json_object *cmd_list(json_object *jcmd, void *arg);
 

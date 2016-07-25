@@ -18,6 +18,7 @@
 #include "misc.h"
 #include "command.h"
 #include "stage.h"
+#include "module.h"
 
 #define SOCK_PATH "/run/nakd/openvpn.sock"
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
@@ -506,6 +507,12 @@ response:
     return jresponse;
 }
 
+static struct nakd_module module_openvpn = {
+    .name = "openvpn",
+    .deps = (const char *[]){ "command", NULL }
+};
+NAKD_DECLARE_MODULE(module_openvpn);
+
 static struct nakd_command openvpn = {
     .name = "openvpn",
     .desc = "Manage OpenVPN daemon.",
@@ -513,5 +520,6 @@ static struct nakd_command openvpn = {
                                                  "\"state\", \"id\": 42}",
     .handler = cmd_openvpn,
     .access = ACCESS_ROOT,
+    .module = &module_openvpn
 };
 NAKD_DECLARE_COMMAND(openvpn);
