@@ -127,6 +127,7 @@ static int _open_mgmt_socket(void) {
     _openvpn_sockaddr.sun_family = AF_UNIX;
     strncpy(_openvpn_sockaddr.sun_path, SOCK_PATH, sizeof SOCK_PATH);
     int len = sizeof(_openvpn_sockaddr.sun_family) + sizeof SOCK_PATH - 1;
+    set_socket_timeout(_openvpn_sockfd, 3);
     if (connect(_openvpn_sockfd, (struct sockaddr *)(&_openvpn_sockaddr), len)
                                                                       == -1) {
         nakd_log(L_WARNING, "Couldn't connect to OpenVPN management socket "
@@ -189,7 +190,10 @@ static char *_call_command(const char *command) {
     _flush();
     if (_writeline(command))
         return NULL;
-    return _getline();
+
+    char *resp = _getline();
+    _close_mgmt_socket();
+    return resp;
 }
 
 static int _mgmt_signal(const char *signal) {
@@ -244,6 +248,7 @@ static char **_call_command_multiline(const char *command) {
 err:
      _free_multiline(&lines);
 response:
+    _close_mgmt_socket();
     return lines;
 }
 
