@@ -318,8 +318,7 @@ int nakd_restart_openvpn(void) {
      *  OpenVPN drops privileges after init - restarting via _mgmt_signal()
      *  won't cut it.
      */
-    nakd_stop_openvpn();
-    nakd_start_openvpn();
+    return nakd_stop_openvpn() || nakd_start_openvpn();
 
     /* Cause OpenVPN to close all TUN/TAP and network connections, restart, 
      * re-read the configuration file (if any), and reopen TUN/TAP and network
