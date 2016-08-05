@@ -37,8 +37,10 @@ const char *nakd_connectivity_string[] = {
 };
 
 static int _ethernet_wan_available(void) {
+    nakd_log_execution_point();
     if (!nakd_iface_state_available())
         return -1;
+    nakd_log_execution_point();
     if (nakd_carrier_present(NAKD_WAN))
         return 1;
     return 0;
@@ -46,6 +48,7 @@ static int _ethernet_wan_available(void) {
 
 static int _arping_gateway(enum nakd_interface intf) {
     int status;
+    nakd_log_execution_point();
 
     status = nakd_shell_exec(NAKD_SCRIPT_PATH,
           NULL, 5, 8, GW_ARPING_SCRIPT " %s",
@@ -212,6 +215,7 @@ static int _run_connectivity_scripts(const char *dirpath) {
 int nakd_local_connectivity(void) {
     if (_ethernet_wan_available())
         return 1;
+    nakd_log_execution_point();
     if (nakd_wlan_connected())
         return !_arping_gateway(NAKD_WLAN);
     return 0;
