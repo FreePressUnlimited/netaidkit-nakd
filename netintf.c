@@ -134,6 +134,7 @@ static int _disable_interface(struct uci_option *option, void *priv) {
         .value = "1"
     };
     nakd_assert(!uci_set(ctx, &disabled_ptr));
+    return 0;
 }
 
 int nakd_disable_interface(enum nakd_interface id) {
