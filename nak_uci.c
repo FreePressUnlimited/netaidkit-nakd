@@ -200,6 +200,18 @@ int nakd_uci_set(struct uci_ptr *ptr) {
     return status;
 }
 
+/*
+ * In case some external library, like libiwinfo (wlan.c), would like to use
+ * non-thread-safe UCI.
+ */
+void nakd_uci_lock(void) {
+    pthread_mutex_lock(&_uci_mutex);
+}
+
+void nakd_uci_unlock(void) {
+    pthread_mutex_unlock(&_uci_mutex);
+}
+
 json_object *nakd_get_option_nolock(const char *package, const char *section,
                                                         const char *option) {
     struct uci_ptr option_ptr = {
