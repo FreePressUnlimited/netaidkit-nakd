@@ -4,6 +4,7 @@
 #include <libubus.h>
 #include "log.h"
 #include "module.h"
+#include "nak_uci.h"
 
 #define UBUS_CALL_TIMEOUT 5 * 1000
 
@@ -27,6 +28,8 @@ int nakd_ubus_call(const char *namespace, const char* procedure,
     nakd_assert(namespace != NULL && procedure != NULL &&
                                 arg != NULL && cb!= NULL);
 
+    /* don't meddle in the configuration for now */
+    nakd_uci_lock();
     /* ubus isn't thread-safe */
     pthread_mutex_lock(&_ubus_mutex);
     /* subsequent inits free previous data */
@@ -57,7 +60,9 @@ int nakd_ubus_call(const char *namespace, const char* procedure,
         nakd_log(L_WARNING, "ubus call status: %d - %s (%s %s %s)", status,
                                         errstr, namespace, procedure, arg);
     }
+
 unlock:
+    nakd_uci_unlock();
     pthread_mutex_unlock(&_ubus_mutex);
     return status;
 }
