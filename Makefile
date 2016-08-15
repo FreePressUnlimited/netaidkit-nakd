@@ -7,11 +7,12 @@ LDSCRIPT = $(patsubst %.ld, -T%.ld, $(wildcard *.ld))
 
 .PRECIOUS: $(DEPEND)
 
-INC = -Iinc
+INC = -Iinc -I../libnl-3.2.21/include # fix libnl3 package
 CFLAGS += -std=c99 -D_GNU_SOURCE $(INC) -rdynamic -fPIE
 LDFLAGS += -pie
 
-LDLIBS += -lpthread -lrt -ljson-c -lubus -lubox -lblobmsg_json -luci -liwinfo
+LDLIBS += -lpthread -lrt -ljson-c -lubus -lubox -lblobmsg_json -luci -liwinfo \
+    -lnl-3 -lnl-route-3 -lnl-genl-3
 
 TARGETS = $(BUILD)/nakd
 
