@@ -59,7 +59,7 @@ static void _poll_shutdown(struct nakd_thread *thread) {
 
 static int _io_init(void) {
     nakd_assert(!nakd_thread_create_joinable(_poll_loop,
-         _poll_shutdown, NULL, (void *)(_poll_thread)));
+                  _poll_shutdown, NULL, &_poll_thread));
     nakd_assert((_efd = epoll_create1(EPOLL_CLOEXEC)) != -1);
     return 0;
 }
