@@ -30,9 +30,6 @@ const char *nakd_interface_name(enum nakd_interface id);
 int nakd_carrier_present(enum nakd_interface id);
 enum nakd_interface nakd_iface_from_string(const char *iface);
 
-void nakd_netintf_disable_updates(int seconds);
-void nakd_netintf_enable_updates(void);
-
 json_object *cmd_interface_state(json_object *jcmd, void *arg);
 
 extern const char *nakd_uci_interface_tag[];

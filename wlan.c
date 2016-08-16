@@ -663,9 +663,6 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
 static int _reload_wireless_config(void) {
     int status = 0;
 
-    /* avoid spurious state updates */
-    nakd_netintf_disable_updates(5);
-
     nakd_log(L_INFO, "Restarting WLAN.");
     char *output;
     if (nakd_shell_exec(NAKD_SCRIPT_PATH, &output, 5, 10, WLAN_UPDATE_SCRIPT)) {

@@ -303,8 +303,6 @@ static int _netintf_init(void) {
                                                        NULL, &_cache));
     nakd_assert(!nakd_thread_create_joinable(_netlink_loop,
                _netlink_shutdown, NULL, &_netlink_thread));
-
-    nakd_netintf_enable_updates();
     return 0;
 }
 
