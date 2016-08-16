@@ -313,8 +313,7 @@ static int _netintf_cleanup(void) {
 }
 
 enum nakd_interface nakd_iface_from_string(const char *iface) {
-    const char **istr = nakd_interface_type;
-    for (; istr < ARRAY_END(nakd_interface_type); istr++) {
+    for (const char **istr = nakd_interface_type; istr != NULL; istr++) {
         if (!strcasecmp(iface, *istr))
             return (enum nakd_interface)(istr - nakd_interface_type);
     }
