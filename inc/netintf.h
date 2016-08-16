@@ -4,11 +4,21 @@
 #include "nak_uci.h"
 
 enum nakd_interface {
-    INTF_UNSPECIFIED,
     NAKD_LAN,
     NAKD_WAN,
     NAKD_WLAN,
-    NAKD_AP
+    NAKD_AP,
+    NAKD_INTF_MAX
+};
+
+enum nakd_interface_carrier {
+    NAKD_CARRIER_UP,
+    NAKD_CARRIER_DOWN,
+    NAKD_CARRIER_MAX
+};
+
+struct nakd_interface_state {
+    enum nakd_interface_carrier carrier;
 };
 
 int nakd_update_iface_config(enum nakd_interface id,
@@ -16,8 +26,8 @@ int nakd_update_iface_config(enum nakd_interface id,
 int nakd_disable_interface(enum nakd_interface id);
 int nakd_interface_disabled(enum nakd_interface id);
 const char *nakd_interface_name(enum nakd_interface id);
+
 int nakd_carrier_present(enum nakd_interface id);
-int nakd_iface_state_available(void);
 enum nakd_interface nakd_iface_from_string(const char *iface);
 
 void nakd_netintf_disable_updates(int seconds);

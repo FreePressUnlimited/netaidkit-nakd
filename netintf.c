@@ -3,10 +3,12 @@
 #include <time.h>
 #include <pthread.h>
 #include <json-c/json.h>
+#include <netlink/netlink.h>
+#include <netlink/cache.h>
+#include <netlink/route/link.h>
 #include "netintf.h"
 #include "jsonrpc.h"
 #include "json.h"
-#include "ubus.h"
 #include "log.h"
 #include "timer.h"
 #include "event.h"
@@ -15,47 +17,39 @@
 #include "workqueue.h"
 #include "command.h"
 #include "misc.h"
-
-#define NETINTF_UBUS_SERVICE "network.device"
-#define NETINTF_UBUS_METHOD "status"
-
-#define NETINTF_UPDATE_INTERVAL 1000 /* ms */
+#include "thread.h"
 
 /* eg. "option nak_lan_tag 1" for wired lan interface */
 const char *nakd_uci_interface_tag[] = {
-    [INTF_UNSPECIFIED] = "?",
     [NAKD_LAN] = "nak_lan_tag",
     [NAKD_WAN] = "nak_wan_tag",
     [NAKD_WLAN] = "nak_wlan_tag",
-    [NAKD_AP] = "nak_ap_tag"
+    [NAKD_AP] = "nak_ap_tag",
+    [NAKD_INTF_MAX] = NULL
 };
 
 const char *nakd_interface_type[] = {
-    [INTF_UNSPECIFIED] = "?",
     [NAKD_LAN] = "LAN",
     [NAKD_WAN] = "WAN",
     [NAKD_WLAN] = "WLAN",
-    [NAKD_AP] = "AP"
+    [NAKD_AP] = "AP",
+    [NAKD_INTF_MAX] = NULL
 };
 
 const char *nakd_interface_default[] = {
-    [INTF_UNSPECIFIED] = NULL,
     [NAKD_LAN] = "eth1",
     [NAKD_WAN] = "eth0",
     [NAKD_WLAN] = "wlan0",
-    [NAKD_AP] = "wlan1"
+    [NAKD_AP] = "wlan1",
+    [NAKD_INTF_MAX] = NULL
 };
 
-static json_object *_previous_netintf_state = NULL;
-static json_object *_current_netintf_state = NULL;
-static struct nakd_timer *_netintf_update_timer;
-static struct nakd_thread *_netintf_thread;
+static struct nakd_thread *_netlink_thread;
+static struct nl_cache_mngr *_manager;
+static struct nl_cache *_cache;
+static int _shutdown;
 
-static pthread_cond_t _netintf_cv;
 static pthread_mutex_t _netintf_mutex;
-
-static int _netintf_updates_disabled;
-static time_t _netintf_updates_timeout;
 
 struct carrier_event {
     /* eg. ETHERNET_WAN_PLUGGED */
@@ -95,6 +89,9 @@ struct interface {
     },
     {}
 };
+
+static struct nakd_interface_state _previous_iface_state[NAKD_INTF_MAX];
+static struct nakd_interface_state _current_iface_state[NAKD_INTF_MAX];
 
 int nakd_update_iface_config(enum nakd_interface id,
         nakd_uci_option_foreach_cb cb, void *priv) {
@@ -206,23 +203,6 @@ static void _read_config(void) {
         nakd_update_iface_config(intf->id, _read_intf_config, intf);
 }
 
-static int __carrier_present(const char *intf) {
-    json_object *jnode = NULL;
-    json_object_object_get_ex(_current_netintf_state, intf, &jnode);
-
-    if (jnode == NULL)
-        return -1;
-
-    json_object *jcarrier = NULL;
-    json_object_object_get_ex(jnode, "carrier", &jcarrier);
-
-    if (jcarrier == NULL)
-        return -1;
-
-    nakd_assert(json_object_get_type(jcarrier) == json_type_boolean);
-    return json_object_get_boolean(jcarrier);
-}
-
 static const char *__interface_name(enum nakd_interface id) {
     for (struct interface *intf = _interfaces; intf->id; intf++) {
         if (intf->id == id)
@@ -238,6 +218,11 @@ const char *nakd_interface_name(enum nakd_interface id) {
     const char *name = __interface_name(id);
     pthread_mutex_unlock(&_netintf_mutex);
     return name;
+}
+
+static int __carrier_present(const char *intf) {
+    enum nakd_interface n_iface = nakd_iface_from_string(intf);
+    return _current_iface_state[n_iface].carrier;
 }
 
 int nakd_carrier_present(enum nakd_interface id) {
@@ -259,168 +244,72 @@ unlock:
     return status;
 }
 
-int nakd_iface_state_available(void) {
-    pthread_mutex_lock(&_netintf_mutex);
-    int s = _current_netintf_state != NULL;
-    pthread_mutex_unlock(&_netintf_mutex);
-    return s;
-}
+static void _update_cb(struct nl_cache *cache, struct nl_object *obj,
+                                            int action, void *priv) {
+    nakd_assert(obj != NULL);
 
-static void __push_carrier_events(void) {
-    if (_previous_netintf_state == NULL ||
-           _current_netintf_state == NULL)
+    struct rtnl_link *link = (struct rtnl_link *)(obj);
+    const char *link_name = rtnl_link_get_name(link);
+    enum nakd_interface n_iface = nakd_iface_from_string(link_name);
+
+    if (n_iface == NAKD_INTF_MAX) {
+        nakd_assert(link_name != NULL);
+        nakd_log(L_CRIT, "Interface undefined: %s", link_name);
         return;
+    }
 
-    for (struct interface *intf = _interfaces; intf->id; intf++) {
-        if (intf->name == NULL || intf->carrier == NULL) 
-            continue;
+    pthread_mutex_lock(&_netintf_mutex);
+    _previous_iface_state[n_iface] = _current_iface_state[n_iface];
+    _current_iface_state[n_iface].carrier = rtnl_link_get_carrier(link);
+    pthread_mutex_unlock(&_netintf_mutex);
 
-        json_object *jnode_previous = NULL;
-        json_object_object_get_ex(_previous_netintf_state, intf->name,
-                                                     &jnode_previous);
-        if (jnode_previous == NULL)
-            continue;
+    enum nakd_event event_id = EVENT_UNSPECIFIED;
+    int carrier_previous = _previous_iface_state[n_iface].carrier;
+    int carrier_current = _current_iface_state[n_iface].carrier;
 
-        json_object *jnode_current = NULL;
-        json_object_object_get_ex(_current_netintf_state, intf->name,
-                                                     &jnode_current);
-        if (jnode_current == NULL) {
-            nakd_log(L_CRIT, "An interface is missing from current "
-                    NETINTF_UBUS_SERVICE " " NETINTF_UBUS_METHOD " "
-                                                          "state.");
-            continue;
-        }
+    if (carrier_previous && !carrier_current) {
+        event_id = _interfaces[n_iface].carrier->event_no_carrier;
+        nakd_log(L_DEBUG, "%s: carrier went down.", link_name);
+    } else if (!carrier_previous && carrier_current) {
+        event_id = _interfaces[n_iface].carrier->event_carrier_present;
+        nakd_log(L_DEBUG, "%s: carrier went up.", link_name);
+    }
 
-        json_object *jcarrier_previous = NULL;
-        json_object_object_get_ex(jnode_previous, "carrier",
-                                        &jcarrier_previous);
-        if (jcarrier_previous == NULL)
-            continue;
-        nakd_assert(json_object_get_type(jcarrier_previous) ==
-                                           json_type_boolean);
-
-        json_object *jcarrier_current = NULL;
-        json_object_object_get_ex(jnode_current, "carrier",
-                                        &jcarrier_current);
-        nakd_assert(jcarrier_current != NULL);
-        nakd_assert(json_object_get_type(jcarrier_current) ==
-                                          json_type_boolean);
-
-        int carrier_previous = json_object_get_boolean(jcarrier_previous); 
-        int carrier_current = json_object_get_boolean(jcarrier_current);
-
-        enum nakd_event event_id = EVENT_UNSPECIFIED;
-        if (carrier_previous && !carrier_current)
-            event_id = intf->carrier->event_no_carrier;
-        else if (!carrier_previous && carrier_current)
-            event_id = intf->carrier->event_carrier_present;
-
-        if (event_id != EVENT_UNSPECIFIED) {
-            nakd_log(L_DEBUG, "Generating event: %s",
-                          nakd_event_name[event_id]);
-            nakd_event_push(event_id);
-        }
+    if (event_id != EVENT_UNSPECIFIED) {
+        nakd_log(L_DEBUG, "Generating event: %s", nakd_event_name[event_id]);
+        nakd_event_push(event_id);
     }
 }
 
-static void __netintf_diff(void) {
-    __push_carrier_events();
+static void _netlink_loop(struct nakd_thread *thread) {
+    while (!_shutdown) {
+        int err = nl_cache_mngr_poll(_manager, 1000);
+        if (err < 0 && err != -NLE_INTR)
+            nakd_log(L_CRIT, "netlink: polling failed: %s", nl_geterror(err));
+    }    
 }
 
-static void _netintf_update_cb(struct ubus_request *req, int type,
-                                          struct blob_attr *msg) {
-    json_tokener *jtok = json_tokener_new();
-
-    char *json_str = blobmsg_format_json(msg, true);
-    nakd_assert(json_str != NULL);
-    if (strlen(json_str) <= 2)
-        goto badmsg;
-
-    json_object *jstate = json_tokener_parse_ex(jtok, json_str, strlen(json_str));
-    if (json_tokener_get_error(jtok) != json_tokener_success)
-        goto badmsg;
-
-    pthread_mutex_lock(&_netintf_mutex);
-    if (_previous_netintf_state != NULL)
-        json_object_put(_previous_netintf_state);
-    _previous_netintf_state = _current_netintf_state;
-    _current_netintf_state = jstate;
-    __netintf_diff();    
-    pthread_mutex_unlock(&_netintf_mutex);
-    goto cleanup;
-
-badmsg:
-    nakd_log(L_WARNING, "Got an unusual response from " NETINTF_UBUS_SERVICE
-                                 " " NETINTF_UBUS_METHOD ": %s.", json_str);
-cleanup:
-    free(json_str);
-    json_tokener_free(jtok);
-}
-
-void nakd_netintf_disable_updates(int seconds) {
-    pthread_mutex_lock(&_netintf_mutex);
-    _netintf_updates_disabled = 1;
-    if (seconds)
-        _netintf_updates_timeout = monotonic_time() + seconds;
-    else
-        _netintf_updates_timeout = 0;
-    pthread_mutex_unlock(&_netintf_mutex);
-    nakd_log(L_DEBUG, "Network interface state updates disabled.");
-}
-
-void nakd_netintf_enable_updates(void) {
-    pthread_mutex_lock(&_netintf_mutex);
-    _netintf_updates_disabled = 0;
-    pthread_mutex_unlock(&_netintf_mutex);
-    nakd_log(L_DEBUG, "Network interface state updates enabled.");
-}
-
-static void _netintf_update(void *priv) {
-    pthread_mutex_lock(&_netintf_mutex);
-    if (_netintf_updates_disabled) {
-        if (_netintf_updates_timeout) {
-            if (monotonic_time() > _netintf_updates_timeout)
-                _netintf_updates_disabled = 0;
-        }
-    }
-    int updates_disabled = _netintf_updates_disabled;
-    pthread_mutex_unlock(&_netintf_mutex);
-    if (updates_disabled)
-        return;
-
-    nakd_ubus_call(NETINTF_UBUS_SERVICE, NETINTF_UBUS_METHOD, "{}", /* all */
-                                         _netintf_update_cb, NULL);
-}
-
-static struct work_desc _update_desc = {
-    .impl = _netintf_update,
-    .name = "netintf update"
-};
-
-static void _netintf_update_sighandler(siginfo_t *timer_info,
-                                  struct nakd_timer *timer) {
-    nakd_log_timer(timer);
-
-    /* skip, if there's already a pending update in the workqueue */
-    if (!nakd_work_pending(nakd_wq, _update_desc.name)) {
-        struct work *work = nakd_alloc_work(&_update_desc);
-        nakd_workqueue_add(nakd_wq, work);
-    }
+static void _netlink_shutdown(struct nakd_thread *thread) {
+    _shutdown = 1;
 }
 
 static int _netintf_init(void) {
     pthread_mutex_init(&_netintf_mutex, NULL);
     _read_config();
+
+    nakd_assert(!nl_cache_mngr_alloc(NULL, NETLINK_ROUTE, NL_AUTO_PROVIDE,
+                                                              &_manager));
+    nakd_assert(!nl_cache_mngr_add(_manager, "route/link", &_update_cb,
+                                                       NULL, &_cache));
+    nakd_assert(!nakd_thread_create_joinable(_netlink_loop,
+               _netlink_shutdown, NULL, &_netlink_thread));
+
     nakd_netintf_enable_updates();
-    _netintf_update(NULL);
-    _netintf_update_timer = nakd_timer_add(NETINTF_UPDATE_INTERVAL,
-                      _netintf_update_sighandler, NULL, "netintf");
     return 0;
 }
 
 static int _netintf_cleanup(void) {
-    nakd_netintf_disable_updates(0);
-    nakd_timer_remove(_netintf_update_timer);
+    nl_cache_mngr_free(_manager);
     pthread_mutex_destroy(&_netintf_mutex);
     return 0;
 }
@@ -431,38 +320,34 @@ enum nakd_interface nakd_iface_from_string(const char *iface) {
         if (!strcasecmp(iface, *istr))
             return (enum nakd_interface)(istr - nakd_interface_type);
     }
-    return INTF_UNSPECIFIED;
+    return NAKD_INTF_MAX;
+}
+
+static json_object *__build_interface_state(void) {
+    json_object *jresult = json_object_new_array();
+    nakd_assert(jresult != NULL);
+
+    for (struct interface *intf = _interfaces; intf->id; intf++) {
+        if (intf->name == NULL || intf->carrier == NULL) 
+            continue;
+
+        json_object *jintf = json_object_new_object();
+        json_object *jiname = json_object_new_string(intf->name);
+        nakd_assert(jintf != NULL && jiname != NULL);
+
+        json_object *jcarrier = json_object_new_boolean(
+                _current_iface_state[intf->id].carrier); 
+        json_object_object_add(jintf, "name", jiname);
+        json_object_object_add(jintf, "carrier", jcarrier);
+        json_object_array_add(jresult, jintf);
+    }
+    return jresult;
 }
 
 json_object *cmd_interface_state(json_object *jcmd, void *arg) {
-    json_object *jresult;
-    json_object *jresponse;
-
     pthread_mutex_lock(&_netintf_mutex);
-    if (_current_netintf_state == NULL) {
-        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                          "Internal error - please try again later");
-        goto unlock;
-    }
-
-    jresult = json_object_new_object();
-    for (struct interface *intf = _interfaces; intf->id; intf++) {
-        json_object *jstate = NULL;
-        if (intf->name != NULL)
-            json_object_object_get_ex(_current_netintf_state, intf->name,
-                                                                &jstate);
-        if (jstate == NULL) {
-            nakd_log(L_DEBUG, "There's no %s interface in current interface "
-                       "status, continuing.", nakd_interface_type[intf->id]);
-            continue;
-        }
-
-        json_object_object_add(jresult, nakd_interface_type[intf->id],
-                                          nakd_json_deepcopy(jstate));
-    }
-
-    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
-
+    json_object *jresponse = nakd_jsonrpc_response_success(jcmd,
+                                      __build_interface_state());
 unlock:    
     pthread_mutex_unlock(&_netintf_mutex);
     return jresponse;
@@ -470,12 +355,10 @@ unlock:
 
 static struct nakd_module module_netintf = {
     .name = "netintf",
-    .deps = (const char *[]){ "uci", "ubus", "event", "timer", "workqueue",
-                                                                    NULL },
+    .deps = (const char *[]){ "uci", "event", NULL },
     .init = _netintf_init,
     .cleanup = _netintf_cleanup
 };
-
 NAKD_DECLARE_MODULE(module_netintf);
 
 static struct nakd_command interfaces = {

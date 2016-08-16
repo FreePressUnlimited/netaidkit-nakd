@@ -36,16 +36,6 @@ const char *nakd_connectivity_string[] = {
     CONNECTIVITY_STRING_ENTRY(CONNECTIVITY_INTERNET),
 };
 
-static int _ethernet_wan_available(void) {
-    nakd_log_execution_point();
-    if (!nakd_iface_state_available())
-        return -1;
-    nakd_log_execution_point();
-    if (nakd_carrier_present(NAKD_WAN))
-        return 1;
-    return 0;
-}
-
 static int _arping_gateway(enum nakd_interface intf) {
     int status;
     nakd_log_execution_point();
@@ -91,7 +81,7 @@ static void _connectivity_update(void *priv) {
     }
 
     /* prefer ethernet */
-    if (_ethernet_wan_available() != 0) {
+    if (nakd_carrier_present(NAKD_WAN) != 0) {
         if (nakd_wlan_connected())
             nakd_wlan_disconnect();
         goto unlock; 
@@ -213,9 +203,8 @@ static int _run_connectivity_scripts(const char *dirpath) {
 }
 
 int nakd_local_connectivity(void) {
-    if (_ethernet_wan_available())
+    if (nakd_carrier_present(NAKD_WAN))
         return 1;
-    nakd_log_execution_point();
     if (nakd_wlan_connected())
         return !_arping_gateway(NAKD_WLAN);
     return 0;
