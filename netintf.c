@@ -220,26 +220,9 @@ const char *nakd_interface_name(enum nakd_interface id) {
     return name;
 }
 
-static int __carrier_present(const char *intf) {
-    enum nakd_interface n_iface = nakd_iface_from_string(intf);
-    return _current_iface_state[n_iface].carrier;
-}
-
 int nakd_carrier_present(enum nakd_interface id) {
-    int status = 1;
-
     pthread_mutex_lock(&_netintf_mutex);
-    const char *intf_name = __interface_name(id);
-    if (intf_name == NULL) {
-        nakd_log(L_CRIT, "There's no interface with id %s",
-                                  nakd_interface_type[id]);
-        status = -1;
-        goto unlock;
-    }
-
-    status = __carrier_present(intf_name);
-
-unlock:
+    int status = _current_iface_state[id].carrier;
     pthread_mutex_unlock(&_netintf_mutex);
     return status;
 }
@@ -250,7 +233,7 @@ static void _update_cb(struct nl_cache *cache, struct nl_object *obj,
 
     struct rtnl_link *link = (struct rtnl_link *)(obj);
     const char *link_name = rtnl_link_get_name(link);
-    enum nakd_interface n_iface = nakd_iface_from_string(link_name);
+    enum nakd_interface n_iface = nakd_iface_from_name_string(link_name);
 
     if (n_iface == NAKD_INTF_MAX) {
         nakd_assert(link_name != NULL);
@@ -312,10 +295,20 @@ static int _netintf_cleanup(void) {
     return 0;
 }
 
-enum nakd_interface nakd_iface_from_string(const char *iface) {
+enum nakd_interface nakd_iface_from_type_string(const char *iface) {
     for (const char **istr = nakd_interface_type; *istr != NULL; istr++) {
         if (!strcasecmp(iface, *istr))
             return (enum nakd_interface)(istr - nakd_interface_type);
+    }
+    return NAKD_INTF_MAX;
+}
+
+enum nakd_interface nakd_iface_from_name_string(const char *iface) {
+    for (struct interface *intf = _interfaces; intf->id; intf++) {
+        if (intf->name == NULL)
+            continue;
+        if (!strcasecmp(iface, intf->name))
+            return intf->id;
     }
     return NAKD_INTF_MAX;
 }

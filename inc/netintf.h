@@ -25,10 +25,11 @@ int nakd_update_iface_config(enum nakd_interface id,
          nakd_uci_option_foreach_cb cb, void *priv);
 int nakd_disable_interface(enum nakd_interface id);
 int nakd_interface_disabled(enum nakd_interface id);
-const char *nakd_interface_name(enum nakd_interface id);
-
 int nakd_carrier_present(enum nakd_interface id);
-enum nakd_interface nakd_iface_from_string(const char *iface);
+
+const char *nakd_interface_name(enum nakd_interface id);
+enum nakd_interface nakd_iface_from_type_string(const char *iface);
+enum nakd_interface nakd_iface_from_name_string(const char *iface);
 
 json_object *cmd_interface_state(json_object *jcmd, void *arg);
 
