@@ -86,8 +86,7 @@ struct interface {
     },
     {
         .id = NAKD_AP
-    },
-    {}
+    }
 };
 
 static struct nakd_interface_state _previous_iface_state[NAKD_INTF_MAX];
@@ -199,12 +198,15 @@ static int _read_intf_config(struct uci_option *option, void *priv) {
 
 static void _read_config(void) {
     /* update interface->name with tags found in UCI */
-    for (struct interface *intf = _interfaces; intf->id; intf++)
+    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
+                                                                     intf++) {
         nakd_update_iface_config(intf->id, _read_intf_config, intf);
+    }
 }
 
 static const char *__interface_name(enum nakd_interface id) {
-    for (struct interface *intf = _interfaces; intf->id; intf++) {
+    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
+                                                                     intf++) {
         if (intf->id == id)
             return intf->name;
     }
@@ -304,7 +306,8 @@ enum nakd_interface nakd_iface_from_type_string(const char *iface) {
 }
 
 enum nakd_interface nakd_iface_from_name_string(const char *iface) {
-    for (struct interface *intf = _interfaces; intf->id; intf++) {
+    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
+                                                                     intf++) {
         if (intf->name == NULL)
             continue;
         if (!strcasecmp(iface, intf->name))
@@ -317,7 +320,8 @@ static json_object *__build_interface_state(void) {
     json_object *jresult = json_object_new_array();
     nakd_assert(jresult != NULL);
 
-    for (struct interface *intf = _interfaces; intf->id; intf++) {
+    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
+                                                                     intf++) {
         if (intf->name == NULL || intf->carrier == NULL) 
             continue;
 
