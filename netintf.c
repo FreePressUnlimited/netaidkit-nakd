@@ -252,11 +252,14 @@ static void _update_cb(struct nl_cache *cache, struct nl_object *obj,
     int carrier_previous = _previous_iface_state[n_iface].carrier;
     int carrier_current = _current_iface_state[n_iface].carrier;
 
+    /* TODO: redesign interface event code */
     if (carrier_previous && !carrier_current) {
-        event_id = _interfaces[n_iface].carrier->event_no_carrier;
+        if (_interfaces[n_iface].carrier != NULL)
+            event_id = _interfaces[n_iface].carrier->event_no_carrier;
         nakd_log(L_DEBUG, "%s: carrier went down.", link_name);
     } else if (!carrier_previous && carrier_current) {
-        event_id = _interfaces[n_iface].carrier->event_carrier_present;
+        if (_interfaces[n_iface].carrier != NULL)
+            event_id = _interfaces[n_iface].carrier->event_carrier_present;
         nakd_log(L_DEBUG, "%s: carrier went up.", link_name);
     }
 
