@@ -252,7 +252,7 @@ static void _handle_update(struct nl_object *obj, void *priv) {
     const char *link_name = rtnl_link_get_name(link);
     struct nakd_interface *iface = nakd_iface_from_name_string(link_name);
     if (iface == NULL) {
-        nakd_log(L_CRIT, "Unknown interface: %s", link_name);
+        nakd_log(L_DEBUG, "Unknown interface: %s", link_name);
         return;
     }
 
