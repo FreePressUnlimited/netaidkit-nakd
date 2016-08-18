@@ -80,19 +80,25 @@ static void _connectivity_update(void *priv) {
         goto unlock;
     }
 
-    /* prefer ethernet */
-    if (nakd_carrier_present(NAKD_WAN) != 0) {
-        nakd_event_push(CONNECTIVITY_OK);
-        if (nakd_wlan_connected())
-            nakd_wlan_disconnect();
-        goto unlock; 
-    }
-
     int wlan_connected = nakd_wlan_connected();
     if (wlan_connected == -1) {
         nakd_log(L_CRIT, "Can't query WLAN interface UCI configuration.");
         goto unlock;
-    } else if (wlan_connected) {
+    } 
+
+    /* prefer ethernet */
+    int ethernet_wan_connected = nakd_carrier_present(NAKD_WAN);
+    if (ethernet_wan_connected == 1) {
+        nakd_event_push(CONNECTIVITY_OK);
+        if (nakd_wlan_connected())
+            nakd_wlan_disconnect();
+        goto unlock; 
+    } else if (!ethernet_wan_connected) {
+        if (!wlan_connected)
+            nakd_event_push(CONNECTIVITY_LOST);
+    }
+
+    if (wlan_connected) {
         /* let things settle before probing network connectivity */
         int uptime = nakd_wlan_connection_uptime();
         if (uptime && uptime < 15)
@@ -172,13 +178,25 @@ static void _connectivity_update_sighandler(siginfo_t *timer_info,
     }
 }
 
+static void _event_handler(enum nakd_event event, void *priv) {
+    if (event == ETHERNET_WAN_PLUGGED) {
+        nakd_event_push(CONNECTIVITY_OK);
+        if (nakd_wlan_connected())
+            nakd_wlan_disconnect();
+    } else if (event == ETHERNET_WAN_LOST) {
+        nakd_event_push(CONNECTIVITY_LOST);
+    }
+}
+
 static int _connectivity_init(void) {
     pthread_mutex_init(&_connectivity_mutex, NULL);
     pthread_mutex_init(&_connectivity_status_mutex, NULL);
+
+    nakd_event_add_handler(ETHERNET_WAN_PLUGGED, _event_handler, NULL);
+    nakd_event_add_handler(ETHERNET_WAN_LOST, _event_handler, NULL);
+
     _connectivity_update_timer = nakd_timer_add(CONNECTIVITY_UPDATE_INTERVAL,
                       _connectivity_update_sighandler, NULL, "connectivity");
-
-    nakd_event_push(CONNECTIVITY_LOST);
 
     struct work *update = nakd_alloc_work(&_update_desc);
     nakd_workqueue_add(nakd_wq, update);

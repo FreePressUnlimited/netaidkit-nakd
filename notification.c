@@ -9,8 +9,8 @@ static struct led_condition _led_cable_plugged = {
     .name = "Ethernet plugged",
     .priority = LED_PRIORITY_NOTIFICATION,
     .states = (struct led_state[]){
-        { "LED1_path", NULL, 1 },
-        { "LED2_path", NULL, 0 },
+        { "LED1_path", NULL, 0 },
+        { "LED2_path", NULL, 1 },
         {}
     },
     .blink.on = 1,
@@ -23,8 +23,8 @@ static struct led_condition _led_cable_removed = {
     .name = "Ethernet unplugged",
     .priority = LED_PRIORITY_NOTIFICATION,
     .states = (struct led_state[]){
-        { "LED1_path", NULL, 0 },
-        { "LED2_path", NULL, 1 },
+        { "LED1_path", NULL, 1 },
+        { "LED2_path", NULL, 0 },
         {}
     },
     .blink.on = 1,
