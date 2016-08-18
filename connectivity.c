@@ -36,7 +36,7 @@ const char *nakd_connectivity_string[] = {
     CONNECTIVITY_STRING_ENTRY(CONNECTIVITY_INTERNET),
 };
 
-static int _arping_gateway(enum nakd_interface intf) {
+static int _arping_gateway(enum nakd_interface_id intf) {
     int status;
     nakd_log_execution_point();
 
@@ -82,6 +82,7 @@ static void _connectivity_update(void *priv) {
 
     /* prefer ethernet */
     if (nakd_carrier_present(NAKD_WAN) != 0) {
+        nakd_event_push(CONNECTIVITY_OK);
         if (nakd_wlan_connected())
             nakd_wlan_disconnect();
         goto unlock; 

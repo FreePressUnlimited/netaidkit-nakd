@@ -1132,12 +1132,15 @@ json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
     }
 
     const char *ifacestr = json_object_get_string(jparams);
-    enum nakd_interface iface = nakd_iface_from_type_string(ifacestr);
-    if (iface != NAKD_WLAN && iface != NAKD_AP)
+    struct nakd_interface *iface = nakd_iface_from_type_string(ifacestr);
+    if (iface == NULL)
+        nakd_log(L_CRIT, "Couldn't find a matching interface: %s", ifacestr);
+
+    if (iface->id != NAKD_WLAN && iface->id != NAKD_AP)
         goto params;
 
     json_object *jnetwork = NULL;
-    if (nakd_update_iface_config(iface, _get_current_wlan_config,
+    if (nakd_update_iface_config(iface->id, _get_current_wlan_config,
                                                &jnetwork) != 1) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
            "Internal error - couldn't get interface configuration.");

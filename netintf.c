@@ -51,35 +51,18 @@ static int _shutdown;
 
 static pthread_mutex_t _netintf_mutex;
 
-struct carrier_event {
-    /* eg. ETHERNET_WAN_PLUGGED */
-    enum nakd_event event_carrier_present;
-    /* eg. ETHERNET_LAN_LOST */
-    enum nakd_event event_no_carrier;
-};
-
-struct interface {
-    enum nakd_interface id;
-    /* eg. eth1, filled by netintf code */
-    char *name;
-
-    struct carrier_event *carrier;
-} static _interfaces[] = {
+static struct nakd_interface _interfaces[] = {
     {
         .id = NAKD_LAN,
 
-        .carrier = &(struct carrier_event){
-            .event_carrier_present = ETHERNET_LAN_PLUGGED,
-            .event_no_carrier = ETHERNET_LAN_LOST
-        }
+        .carrier_up_event = ETHERNET_LAN_PLUGGED,
+        .carrier_down_event = ETHERNET_LAN_LOST,
     },
     {
         .id = NAKD_WAN,
 
-        .carrier = &(struct carrier_event){
-            .event_carrier_present = ETHERNET_WAN_PLUGGED,
-            .event_no_carrier = ETHERNET_WAN_LOST
-        }
+        .carrier_up_event = ETHERNET_WAN_PLUGGED,
+        .carrier_down_event = ETHERNET_WAN_LOST
     },
     {
         .id = NAKD_WLAN 
@@ -89,10 +72,35 @@ struct interface {
     }
 };
 
-static struct nakd_interface_state _previous_iface_state[NAKD_INTF_MAX];
-static struct nakd_interface_state _current_iface_state[NAKD_INTF_MAX];
+static void _carrier_update(struct nakd_interface *iface,
+                                struct rtnl_link *link) {
+    const char *link_name = rtnl_link_get_name(link);
 
-int nakd_update_iface_config(enum nakd_interface id,
+    int previous_carrier_state = iface->carrier_state;
+    int current_carrier_state = rtnl_link_get_carrier(link);
+
+    if (!previous_carrier_state && current_carrier_state) {
+        if (iface->carrier_down_event != EVENT_UNSPECIFIED)
+            nakd_event_push(iface->carrier_down_event);
+        nakd_log(L_DEBUG, "%s: carrier went down.", link_name);
+    } else if (previous_carrier_state && !current_carrier_state) {
+        if (iface->carrier_up_event != EVENT_UNSPECIFIED)
+            nakd_event_push(iface->carrier_up_event);
+        nakd_log(L_DEBUG, "%s: carrier went up.", link_name);
+    }
+
+    iface->carrier_state = current_carrier_state; 
+}
+
+typedef void (*intf_update_cb)(struct nakd_interface *,
+                               struct rtnl_link *link);
+
+static intf_update_cb _intf_update_cbs[] = {
+    _carrier_update,
+    NULL
+};
+
+int nakd_update_iface_config(enum nakd_interface_id id,
         nakd_uci_option_foreach_cb cb, void *priv) {
     /* Find interface tag, execute callback. */
     int tags_found = nakd_uci_option_foreach(
@@ -116,7 +124,7 @@ int nakd_update_iface_config(enum nakd_interface id,
 }
 
 static int _disable_interface(struct uci_option *option, void *priv) {
-    struct interface *intf = priv;
+    struct nakd_interface *intf = priv;
     struct uci_section *ifs = option->section;
     struct uci_context *ctx = ifs->package->ctx;
 
@@ -133,7 +141,7 @@ static int _disable_interface(struct uci_option *option, void *priv) {
     return 0;
 }
 
-int nakd_disable_interface(enum nakd_interface id) {
+int nakd_disable_interface(enum nakd_interface_id id) {
     int status = 0;
 
     nakd_log(L_INFO, "Disabling %s.", nakd_interface_type[id]);
@@ -151,7 +159,7 @@ unlock:
 }
 
 static int _interface_disabled(struct uci_option *option, void *priv) {
-    struct interface *intf = priv;
+    struct nakd_interface *intf = priv;
     struct uci_section *ifs = option->section;
     struct uci_context *ctx = ifs->package->ctx;
 
@@ -168,7 +176,7 @@ static int _interface_disabled(struct uci_option *option, void *priv) {
     return 0;
 }
 
-int nakd_interface_disabled(enum nakd_interface id) {
+int nakd_interface_disabled(enum nakd_interface_id id) {
     int status;
     pthread_mutex_lock(&_netintf_mutex);
     if (nakd_update_iface_config(id, _interface_disabled,
@@ -183,7 +191,7 @@ unlock:
 }
 
 static int _read_intf_config(struct uci_option *option, void *priv) {
-    struct interface *intf = priv;
+    struct nakd_interface *intf = priv;
     struct uci_section *ifs = option->section;
     struct uci_context *ctx = ifs->package->ctx;
     const char *ifname = uci_lookup_option_string(ctx, ifs, "ifname");
@@ -198,15 +206,15 @@ static int _read_intf_config(struct uci_option *option, void *priv) {
 
 static void _read_config(void) {
     /* update interface->name with tags found in UCI */
-    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
-                                                                     intf++) {
+    for (struct nakd_interface *intf = _interfaces;
+          intf != ARRAY_END(_interfaces); intf++) {
         nakd_update_iface_config(intf->id, _read_intf_config, intf);
     }
 }
 
-static const char *__interface_name(enum nakd_interface id) {
-    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
-                                                                     intf++) {
+static const char *__interface_name(enum nakd_interface_id id) {
+    for (struct nakd_interface *intf = _interfaces;
+          intf != ARRAY_END(_interfaces); intf++) {
         if (intf->id == id)
             return intf->name;
     }
@@ -215,58 +223,46 @@ static const char *__interface_name(enum nakd_interface id) {
     return nakd_interface_default[id];
 }
 
-const char *nakd_interface_name(enum nakd_interface id) {
+const char *nakd_interface_name(enum nakd_interface_id id) {
     pthread_mutex_lock(&_netintf_mutex);
     const char *name = __interface_name(id);
     pthread_mutex_unlock(&_netintf_mutex);
     return name;
 }
 
-int nakd_carrier_present(enum nakd_interface id) {
+int nakd_carrier_present(enum nakd_interface_id id) {
+    struct nakd_interface *intf = nakd_iface_from_id(id);
+    if (intf == NULL) {
+        nakd_log(L_CRIT, "No such interface id: %d", id);
+        return -1;
+    }
+
     pthread_mutex_lock(&_netintf_mutex);
-    int status = _current_iface_state[id].carrier;
+    int status = intf->carrier_state;
     pthread_mutex_unlock(&_netintf_mutex);
     return status;
 }
 
-static void _update_cb(struct nl_cache *cache, struct nl_object *obj,
-                                            int action, void *priv) {
-    nakd_assert(obj != NULL);
+static void _handle_update(struct nl_object *obj, void *priv) {
+    const char *nl_type = nl_object_get_type(obj);
+    if (strcmp(nl_type, "route/link"))
+        return;
 
     struct rtnl_link *link = (struct rtnl_link *)(obj);
     const char *link_name = rtnl_link_get_name(link);
-    enum nakd_interface n_iface = nakd_iface_from_name_string(link_name);
-
-    if (n_iface == NAKD_INTF_MAX) {
-        nakd_assert(link_name != NULL);
-        nakd_log(L_CRIT, "Interface undefined: %s", link_name);
+    struct nakd_interface *iface = nakd_iface_from_name_string(link_name);
+    if (iface == NULL) {
+        nakd_log(L_CRIT, "Unknown interface: %s", link_name);
         return;
     }
 
-    pthread_mutex_lock(&_netintf_mutex);
-    _previous_iface_state[n_iface] = _current_iface_state[n_iface];
-    _current_iface_state[n_iface].carrier = rtnl_link_get_carrier(link);
-    pthread_mutex_unlock(&_netintf_mutex);
+    for (intf_update_cb *cb = _intf_update_cbs; cb != NULL; cb++)
+        (*cb)(iface, link);
+}
 
-    enum nakd_event event_id = EVENT_UNSPECIFIED;
-    int carrier_previous = _previous_iface_state[n_iface].carrier;
-    int carrier_current = _current_iface_state[n_iface].carrier;
-
-    /* TODO: redesign interface event code */
-    if (carrier_previous && !carrier_current) {
-        if (_interfaces[n_iface].carrier != NULL)
-            event_id = _interfaces[n_iface].carrier->event_no_carrier;
-        nakd_log(L_DEBUG, "%s: carrier went down.", link_name);
-    } else if (!carrier_previous && carrier_current) {
-        if (_interfaces[n_iface].carrier != NULL)
-            event_id = _interfaces[n_iface].carrier->event_carrier_present;
-        nakd_log(L_DEBUG, "%s: carrier went up.", link_name);
-    }
-
-    if (event_id != EVENT_UNSPECIFIED) {
-        nakd_log(L_DEBUG, "Generating event: %s", nakd_event_name[event_id]);
-        nakd_event_push(event_id);
-    }
+static void _update_cb(struct nl_cache *cache, struct nl_object *obj,
+                                            int action, void *priv) {
+    _handle_update(obj, NULL);
 }
 
 static void _netlink_loop(struct nakd_thread *thread) {
@@ -291,6 +287,10 @@ static int _netintf_init(void) {
                                                        NULL, &_cache));
     nakd_assert(!nakd_thread_create_joinable(_netlink_loop,
                _netlink_shutdown, NULL, &_netlink_thread));
+
+    /* set initial interface states */
+    nl_cache_foreach(_cache, _handle_update, NULL);
+
     return 0;
 }
 
@@ -300,32 +300,50 @@ static int _netintf_cleanup(void) {
     return 0;
 }
 
-enum nakd_interface nakd_iface_from_type_string(const char *iface) {
+struct nakd_interface *nakd_iface_from_type_string(const char *iface) {
     for (const char **istr = nakd_interface_type; *istr != NULL; istr++) {
-        if (!strcasecmp(iface, *istr))
-            return (enum nakd_interface)(istr - nakd_interface_type);
+        if (!strcasecmp(iface, *istr)) {
+            enum nakd_interface_id id = (enum nakd_interface_id)(istr
+                                        - nakd_interface_type);
+            for (struct nakd_interface *intf = _interfaces;
+                            intf != ARRAY_END(_interfaces);
+                                                  intf++) {
+                if (intf->id == id)
+                    return intf;
+            }
+            break;
+        }
     }
-    return NAKD_INTF_MAX;
+    return NULL;
 }
 
-enum nakd_interface nakd_iface_from_name_string(const char *iface) {
-    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
-                                                                     intf++) {
+struct nakd_interface *nakd_iface_from_name_string(const char *iface) {
+    for (struct nakd_interface *intf = _interfaces;
+          intf != ARRAY_END(_interfaces); intf++) {
         if (intf->name == NULL)
             continue;
         if (!strcasecmp(iface, intf->name))
-            return intf->id;
+            return intf;
     }
-    return NAKD_INTF_MAX;
+    return NULL;
+}
+
+struct nakd_interface *nakd_iface_from_id(enum nakd_interface_id ifn) {
+    for (struct nakd_interface *intf = _interfaces;
+          intf != ARRAY_END(_interfaces); intf++) {
+        if (intf->id == ifn)
+            return intf;
+    }
+    return NULL;
 }
 
 static json_object *__build_interface_state(void) {
     json_object *jresult = json_object_new_array();
     nakd_assert(jresult != NULL);
 
-    for (struct interface *intf = _interfaces; intf != ARRAY_END(_interfaces);
-                                                                     intf++) {
-        if (intf->name == NULL || intf->carrier == NULL) 
+    for (struct nakd_interface *intf = _interfaces;
+          intf != ARRAY_END(_interfaces); intf++) {
+        if (intf->name == NULL) 
             continue;
 
         json_object *jintf = json_object_new_object();
@@ -333,7 +351,7 @@ static json_object *__build_interface_state(void) {
         nakd_assert(jintf != NULL && jiname != NULL);
 
         json_object *jcarrier = json_object_new_boolean(
-                _current_iface_state[intf->id].carrier); 
+                                   intf->carrier_state); 
         json_object_object_add(jintf, "name", jiname);
         json_object_object_add(jintf, "carrier", jcarrier);
         json_object_array_add(jresult, jintf);
