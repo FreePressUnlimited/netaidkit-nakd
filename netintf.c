@@ -256,7 +256,7 @@ static void _handle_update(struct nl_object *obj, void *priv) {
         return;
     }
 
-    for (intf_update_cb *cb = _intf_update_cbs; cb != NULL; cb++)
+    for (intf_update_cb *cb = _intf_update_cbs; *cb != NULL; cb++)
         (*cb)(iface, link);
 }
 
