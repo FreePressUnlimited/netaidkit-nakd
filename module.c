@@ -42,14 +42,13 @@ static void _init_module(struct nakd_module *module) {
         }
     }
 
-    if (module->init()) {
+    if (module->init != NULL && module->init())
         nakd_terminate("Couldn't initialize module %s.", module->name);
-    } else {
-        pthread_mutex_lock(&module->state_lock);
-        module->state = NAKD_INITIALIZED;
-        pthread_mutex_unlock(&module->state_lock);
-        nakd_log(L_DEBUG, "Initialized module %s.", module->name);
-    }
+
+    pthread_mutex_lock(&module->state_lock);
+    module->state = NAKD_INITIALIZED;
+    pthread_mutex_unlock(&module->state_lock);
+    nakd_log(L_DEBUG, "Initialized module %s.", module->name);
 }
 
 static void _cleanup_module(struct nakd_module *module) {
@@ -78,7 +77,7 @@ static void _cleanup_module(struct nakd_module *module) {
         }
     }
 
-    nakd_assert(!module->cleanup());
+    nakd_assert(module->cleanup != NULL && !module->cleanup());
     pthread_mutex_lock(&module->state_lock);
     module->state = NAKD_REMOVED;
     pthread_mutex_unlock(&module->state_lock);
