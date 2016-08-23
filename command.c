@@ -81,6 +81,7 @@ void nakd_call_command(const char *cmd_name, json_object *jcmd,
     }
 
     struct call_command_data *d = malloc(sizeof(struct call_command_data));
+    d->cmd = cmd;
     d->jcmd = jcmd;
     d->cb = cb;
     d->timeout_cb = timeout_cb;
