@@ -347,12 +347,15 @@ static json_object *__build_interface_state(void) {
             continue;
 
         json_object *jintf = json_object_new_object();
+        json_object *jtype = json_object_new_string(
+                     nakd_interface_type[intf->id]);
         json_object *jiname = json_object_new_string(intf->name);
         nakd_assert(jintf != NULL && jiname != NULL);
 
         json_object *jcarrier = json_object_new_boolean(
                                    intf->carrier_state); 
         json_object_object_add(jintf, "name", jiname);
+        json_object_object_add(jintf, "type", jtype);
         json_object_object_add(jintf, "carrier", jcarrier);
         json_object_array_add(jresult, jintf);
     }
