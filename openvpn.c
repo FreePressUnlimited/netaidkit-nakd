@@ -23,6 +23,7 @@
 #define SOCK_PATH "/run/nakd/openvpn.sock"
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
 #define AUTH_PATH "/nak/ovpn/auth.txt"
+#define UP_SCRIPT_PATH "/usr/share/nakd/scripts/util/openvpn_up.sh"
 
 static char * const _argv[] = {
     "/usr/sbin/openvpn",
@@ -30,6 +31,7 @@ static char * const _argv[] = {
     "--daemon",
     "--management", SOCK_PATH, "unix",
     "--config", CONFIG_PATH,
+    "--up", UP_SCRIPT_PATH,
     NULL
 };
 
@@ -40,6 +42,7 @@ static char * const _argv_auth[] = {
     "--management", SOCK_PATH, "unix",
     "--config", CONFIG_PATH,
     "--auth-user-pass", AUTH_PATH,
+    "--up", UP_SCRIPT_PATH,
     NULL
 };
 
