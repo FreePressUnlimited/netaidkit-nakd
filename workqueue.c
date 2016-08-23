@@ -32,7 +32,7 @@ static void __cancel_work(struct nakd_thread *thread) {
 }
 
 static void __check_timeout(void) {
-    int now = time(NULL);
+    time_t now = monotonic_time();
 
     /* TODO */
     struct workqueue *wq = nakd_wq;
@@ -168,7 +168,7 @@ static void _workqueue_loop(struct nakd_thread *thr) {
             nakd_log(L_DEBUG, "workqueue: processing \"%s\"", work->desc.name);
 
         pthread_mutex_lock(&_status_lock);
-        work->start_time = time(NULL);
+        work->start_time = monotonic_time();
         priv->current = work;
         pthread_mutex_unlock(&_status_lock);
 
@@ -180,7 +180,7 @@ static void _workqueue_loop(struct nakd_thread *thr) {
             work->status = WORK_CANCELED;
         }
 
-        time_t now = time(NULL);
+        time_t now = monotonic_time();
         if (work->desc.name != NULL)
             nakd_log(L_DEBUG, "workqueue: finished \"%s\", took %ds",
                                  work->desc.name, now - work->start_time);
