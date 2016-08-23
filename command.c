@@ -132,9 +132,11 @@ json_object *nakd_command_timedlock(json_object *jcmd, pthread_mutex_t *lock) {
     timeout.tv_sec += NAKD_COMMAND_MUTEX_TIMEOUT;
     int lock_status = pthread_mutex_timedlock(lock, &timeout);
     if (lock_status == ETIMEDOUT) {
+        nakd_log(L_DEBUG, "RPC call lock timed out.");
         return nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
                                       "Internal error - busy.");
     } else if (lock_status) {
+        nakd_log(L_DEBUG, "RPC call lock error - %s", strerror(lock_status));
         return nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
                   "Internal error - %s", strerror(lock_status));
     }
