@@ -888,7 +888,9 @@ static int _wlan_cleanup(void) {
 json_object *cmd_wlan_list(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
+
     if (_wireless_networks == NULL) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
                            "Internal error - no cached scan results,"
@@ -901,24 +903,29 @@ json_object *cmd_wlan_list(json_object *jcmd, void *arg) {
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
 json_object *cmd_wlan_list_stored(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
+
     jresponse = nakd_jsonrpc_response_success(jcmd,
              nakd_json_deepcopy(_stored_networks));
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
 json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
+    // TODO nakd_command_timedlock
     if (nakd_wlan_scan()) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
            "Internal error - couldn't update wireless network list");
@@ -941,7 +948,8 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
     json_object *jresponse;
     json_object *jparams;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_object) {
@@ -1006,13 +1014,16 @@ params:
                            " with \"ssid\" and \"key\" members");
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
 json_object *cmd_configure_ap(json_object *jcmd, void *arg) {
     json_object *jparams;
     json_object *jresponse;
-    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_object) {
@@ -1044,13 +1055,16 @@ params:
                                                     " members.");
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
 json_object *cmd_wlan_forget(json_object *jcmd, void *arg) {
     json_object *jparams;
     json_object *jresponse;
-    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_object) {
@@ -1073,6 +1087,7 @@ params:
                                            " \"ssid\", member.");
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
@@ -1124,7 +1139,8 @@ json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
     json_object *jresponse;
     json_object *jparams;
 
-    pthread_mutex_lock(&_wlan_config_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_config_mutex)) != NULL)
+        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_string) {
@@ -1156,6 +1172,7 @@ params:
                                 "and \"AP\" interfaces allowed.");
 unlock:
     pthread_mutex_unlock(&_wlan_config_mutex);
+response:
     return jresponse;
 }
 
@@ -1176,7 +1193,8 @@ json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
     json_object *jresponse;
     json_object *jparams;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_object) {
@@ -1223,6 +1241,7 @@ params:
                                " with at least \"ssid\" member");
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
@@ -1230,7 +1249,8 @@ json_object *cmd_wlan_autoconnect_set(json_object *jcmd, void *arg) {
     json_object *jresponse;
     json_object *jparams;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_boolean) {
@@ -1253,13 +1273,15 @@ params:
                     "Invalid parameters - params isn't boolean");
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
 json_object *cmd_wlan_autoconnect_get(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
-    pthread_mutex_lock(&_wlan_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     int autoconnect;
     if (nakd_config_key_int("wlan_autoconnect", &autoconnect)) {
@@ -1273,6 +1295,7 @@ json_object *cmd_wlan_autoconnect_get(json_object *jcmd, void *arg) {
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 
@@ -1302,7 +1325,9 @@ static void _wlan_disconnect_async(void) {
 
 json_object *cmd_wlan_disconnect(json_object *jcmd, void *arg) {
     json_object *jresponse;
-    pthread_mutex_lock(&_wlan_mutex);
+
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
 
     if (nakd_config_set_int("wlan_autoconnect", 0)) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
@@ -1317,6 +1342,7 @@ json_object *cmd_wlan_disconnect(json_object *jcmd, void *arg) {
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
+response:
     return jresponse;
 }
 

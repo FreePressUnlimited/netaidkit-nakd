@@ -291,7 +291,8 @@ json_object *cmd_tor(json_object *jcmd, void *arg) {
         goto response;
     }
 
-    pthread_mutex_lock(&_tor_cmd_mutex);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_tor_cmd_mutex)) != NULL)
+        goto response;
 
     struct tor_cs cmd_s;
     if (_open_mgmt_socket(&cmd_s)) {

@@ -255,17 +255,24 @@ NAKD_DECLARE_MODULE(module_connectivity);
 json_object *cmd_connectivity(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
-    json_object *jresult = json_object_new_object();
+    if ((jresponse = nakd_command_timedlock(jcmd, &_connectivity_status_mutex))
+                                                                     != NULL) {
+        goto response;
+    }
 
-    pthread_mutex_lock(&_connectivity_status_mutex);
+    json_object *jresult = json_object_new_object();
     json_object *jlocal = json_object_new_boolean(_connectivity_local);
     json_object *jinternet = json_object_new_boolean(_connectivity_internet);
+
     pthread_mutex_unlock(&_connectivity_status_mutex);
 
     json_object_object_add(jresult, "local", jlocal);
     json_object_object_add(jresult, "internet", jinternet);
 
-    return nakd_jsonrpc_response_success(jcmd, jresult);
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+
+response:
+    return jresponse;
 }
 
 static struct nakd_command connectivity = {

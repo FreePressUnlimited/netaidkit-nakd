@@ -493,10 +493,11 @@ int nakd_stage(const char *stage_name) {
 json_object *cmd_stage_set(json_object *jcmd, void *param) {
     json_object *jresponse;
 
-    nakd_log_execution_point();
-    nakd_assert(jcmd != NULL);
+    if ((jresponse = nakd_command_timedlock(jcmd, &_stage_status_mutex))
+                                                              != NULL) {
+        goto response;
+    }
 
-    pthread_mutex_lock(&_stage_status_mutex);
     int busy = _requested_stage != NULL;
     const char *requested_name;
     if (busy)
@@ -560,7 +561,12 @@ const struct stage *nakd_stage_current(void) {
 }
 
 json_object *cmd_stage_current(json_object *jcmd, void *param) {
-    pthread_mutex_lock(&_stage_status_mutex);
+    json_object *jresponse;
+
+    if ((jresponse = nakd_command_timedlock(jcmd, &_stage_status_mutex))
+                                                              != NULL) {
+        goto response;
+    }
 
     json_object *jresult;
     if (_current_stage != NULL)
@@ -568,13 +574,20 @@ json_object *cmd_stage_current(json_object *jcmd, void *param) {
     else
         jresult = json_object_new_string("No stage set.");
 
-    json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     pthread_mutex_unlock(&_stage_status_mutex);
+
+response:
     return jresponse;
 }
 
 json_object *cmd_stage_requested(json_object *jcmd, void *param) {
-    pthread_mutex_lock(&_stage_status_mutex);
+    json_object *jresponse;
+
+    if ((jresponse = nakd_command_timedlock(jcmd, &_stage_status_mutex))
+                                                              != NULL) {
+        goto response;
+    }
 
     json_object *jresult;
     if (_requested_stage != NULL)
@@ -582,13 +595,20 @@ json_object *cmd_stage_requested(json_object *jcmd, void *param) {
     else
         jresult = json_object_new_string("No requested stage.");
 
-    json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     pthread_mutex_unlock(&_stage_status_mutex);
+
+response:
     return jresponse;
 }
 
 json_object *cmd_stage_status(json_object *jcmd, void *param) {
-    pthread_mutex_lock(&_stage_status_mutex);
+    json_object *jresponse;
+
+    if ((jresponse = nakd_command_timedlock(jcmd, &_stage_status_mutex))
+                                                              != NULL) {
+        goto response;
+    }
 
     json_object *jresult = json_object_new_object();
     if (_stage_status.error != NULL) {
@@ -607,8 +627,10 @@ json_object *cmd_stage_status(json_object *jcmd, void *param) {
         json_object_object_add(jresult, "step", jstep);
     }
 
-    json_object *jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
     pthread_mutex_unlock(&_stage_status_mutex);
+
+response:
     return jresponse;
 }
 

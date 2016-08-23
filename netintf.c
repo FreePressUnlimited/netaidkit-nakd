@@ -360,11 +360,15 @@ static json_object *__build_interface_state(void) {
 }
 
 json_object *cmd_interface_state(json_object *jcmd, void *arg) {
-    pthread_mutex_lock(&_netintf_mutex);
-    json_object *jresponse = nakd_jsonrpc_response_success(jcmd,
-                                      __build_interface_state());
+    json_object *jresponse;
+    if ((jresponse = nakd_command_timedlock(jcmd, &_netintf_mutex)) != NULL)
+        goto response;
+
+    jresponse = nakd_jsonrpc_response_success(jcmd,
+                        __build_interface_state());
 unlock:    
     pthread_mutex_unlock(&_netintf_mutex);
+response:
     return jresponse;
 }
 

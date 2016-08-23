@@ -1,7 +1,10 @@
 #ifndef NAKD_COMMAND_H
 #define NAKD_COMMAND_H
+#include <pthread.h>
 #include <json-c/json.h>
 #include "module.h"
+
+#define NAKD_COMMAND_MUTEX_TIMEOUT 3
 
 typedef json_object *(*nakd_cmd_handler)(json_object *jcmd, void *priv);
 typedef void (*nakd_response_cb)(json_object *jresp, void *priv);
@@ -29,6 +32,9 @@ void nakd_call_command(const char *name, json_object *jcmd,
                                                void *priv);
 
 json_object *cmd_list(json_object *jcmd, void *arg);
+
+json_object *nakd_command_timedlock(json_object *jcmd,
+                               pthread_mutex_t *lock);
 
 #define NAKD_DECLARE_COMMAND(desc) \
     struct nakd_command * desc ## _ptr \

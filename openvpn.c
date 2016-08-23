@@ -492,16 +492,19 @@ json_object *cmd_openvpn(json_object *jcmd, void *arg) {
         goto response;
     }
 
+    if ((jresponse = nakd_command_timedlock(jcmd, &_command_mutex)) != NULL)
+        goto response;
+
     const char *command = json_object_get_string(jparams);
     for (const struct openvpn_command *cmd = _openvpn_commands;
          cmd < ARRAY_END(_openvpn_commands); cmd++) {
         if (!strcasecmp(cmd->name, command)) {
-            pthread_mutex_lock(&_command_mutex);
             jresponse = cmd->impl(jcmd);
-            pthread_mutex_unlock(&_command_mutex);
             goto response;
         }
     }
+
+    pthread_mutex_unlock(&_command_mutex);
 
     jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
       "Invalid parameters - no such OpenVPN management command");

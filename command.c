@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
+#include <errno.h>
 #include <pthread.h>
 #include <json-c/json.h>
 #include "command.h"
@@ -10,6 +12,7 @@
 #include "jsonrpc.h"
 #include "module.h"
 #include "workqueue.h"
+#include "misc.h"
 
 /* see: command.ld, command.h */
 extern struct nakd_command *__nakd_command_list[];
@@ -121,6 +124,21 @@ json_object *cmd_list(json_object *jcmd, void *arg) {
         json_object_array_add(jresult, _desc_command(*command));
     }
     return nakd_jsonrpc_response_success(jcmd, jresult);
+}
+
+json_object *nakd_command_timedlock(json_object *jcmd, pthread_mutex_t *lock) {
+    struct timespec timeout;
+    clock_gettime(CLOCK_MONOTONIC, &timeout);
+    timeout.tv_sec += NAKD_COMMAND_MUTEX_TIMEOUT;
+    int lock_status = pthread_mutex_timedlock(lock, &timeout);
+    if (lock_status == ETIMEDOUT) {
+        return nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                                      "Internal error - busy.");
+    } else if (lock_status) {
+        return nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                  "Internal error - %s", strerror(lock_status));
+    }
+    return NULL;
 }
 
 struct nakd_module module_command = {
