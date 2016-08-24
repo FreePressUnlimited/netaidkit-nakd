@@ -23,8 +23,6 @@
 
 #define NAKD_SHELL "/bin/sh"
 
-#define NAKD_MAX_ARG_STRLEN 8192
-
 /* create {"/bin/sh", argv[0], ..., argv[n], NULL} on heap */
 static char **build_argv_json(const char *path, json_object *params) {
     int argn = json_object_array_length(params);
@@ -94,19 +92,6 @@ static void free_argv(const char **argv) {
     for (int i = 0; argv[i] != NULL; i++)
         free((void *)(argv[i]));
     free((void *)(argv));
-}
-
-static void log_execve(const char *argv[]) {
-    int format_len = 0;
-    char *execve_log = malloc(NAKD_MAX_ARG_STRLEN);
-    nakd_assert(execve_log != NULL);
-
-    for (; *argv != NULL; argv++)
-        format_len += snprintf(execve_log + format_len, NAKD_MAX_ARG_STRLEN
-                                               - format_len, " %s", *argv);
-
-    nakd_log(L_DEBUG, execve_log);
-    free(execve_log);
 }
 
 int nakd_shell_exec(const char *cwd, char **output, int timeout_term,

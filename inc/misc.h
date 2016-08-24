@@ -11,4 +11,7 @@
 time_t monotonic_time(void);
 void set_socket_timeout(int fd, int sec);
 
+#define NAKD_MAX_ARG_STRLEN 8192
+void log_execve(const char * const argv[]);
+
 #endif
