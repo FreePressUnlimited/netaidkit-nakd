@@ -67,6 +67,9 @@ int nakd_config_key(const char *key, char **ret) {
         goto unlock;
     }
 
+    /* UCI isn't thread-safe - lock before using libuci calls */
+    nakd_uci_lock();
+
     struct uci_section *nakd_s = uci_lookup_section(nakd_pkg->ctx, nakd_pkg,
                                                         CONFIG_UCI_SECTION);
     if (nakd_s == NULL) {
@@ -95,6 +98,7 @@ int nakd_config_key(const char *key, char **ret) {
     *ret = strdup(opt->v.string);
 
 cleanup:
+    nakd_uci_unlock();
     if (nakd_unload_uci_package(nakd_pkg))
         nakd_log(L_CRIT, "Couldn't unload nakd UCI package.");
 unlock:
@@ -131,6 +135,8 @@ int nakd_config_set(const char *key, const char *val) {
         goto unlock;
     }
 
+    nakd_uci_lock();
+
     struct uci_section *nakd_s = uci_lookup_section(nakd_pkg->ctx, nakd_pkg,
                                                         CONFIG_UCI_SECTION);
     if (nakd_s == NULL) {
@@ -153,6 +159,7 @@ int nakd_config_set(const char *key, const char *val) {
     nakd_uci_commit(&nakd_pkg, true);
 
 cleanup:
+    nakd_uci_unlock();
     if (nakd_unload_uci_package(nakd_pkg))
         nakd_log(L_CRIT, "Couldn't unload nakd UCI package.");
 unlock:
