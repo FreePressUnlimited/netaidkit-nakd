@@ -24,6 +24,7 @@
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
 #define AUTH_PATH "/nak/ovpn/auth.txt"
 #define UP_SCRIPT_PATH "/usr/share/nakd/scripts/util/openvpn_up.sh"
+#define SCRIPT_SECURITY "2"
 
 static char * const _argv[] = {
     "/usr/sbin/openvpn",
@@ -31,6 +32,7 @@ static char * const _argv[] = {
     "--daemon",
     "--management", SOCK_PATH, "unix",
     "--config", CONFIG_PATH,
+    "--script-security", SCRIPT_SECURITY,
     "--up", UP_SCRIPT_PATH,
     NULL
 };
@@ -42,6 +44,7 @@ static char * const _argv_auth[] = {
     "--management", SOCK_PATH, "unix",
     "--config", CONFIG_PATH,
     "--auth-user-pass", AUTH_PATH,
+    "--script-security", SCRIPT_SECURITY,
     "--up", UP_SCRIPT_PATH,
     NULL
 };
