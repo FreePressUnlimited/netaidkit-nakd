@@ -20,8 +20,8 @@ static int _uci_cleanup(void) {
     return 0;
 }
 
-static struct uci_package *__load_uci_package(const char *name) {
-    struct uci_package *pkg = NULL;
+struct uci_package *nakd_load_uci_package(const char *name) {
+   struct uci_package *pkg = NULL;
 
     /*
      * nakd_log(L_INFO, "Loading UCI package \"%s\"", name);
@@ -43,13 +43,6 @@ static struct uci_package *__load_uci_package(const char *name) {
     return pkg;
 }
 
-struct uci_package *nakd_load_uci_package(const char *name) {
-    pthread_mutex_lock(&_uci_mutex);
-    struct uci_package *ret = __load_uci_package(name);
-    pthread_mutex_unlock(&_uci_mutex);
-    return ret;
-}
-
 static int _uci_option_single_cb(struct uci_option *option, void *priv) {
     struct uci_option **result = (struct uci_option **)(priv);
     *result = option;
@@ -62,21 +55,14 @@ struct uci_option *nakd_uci_option_single(const char *option_name) {
     return result;
 }
 
-static int __uci_save(struct uci_package *pkg) {
+int nakd_uci_save(struct uci_package *pkg) {
     /*
      *    nakd_log(L_INFO, "Saving UCI package \"%s\"", pkg->e.name);
      */
     return uci_save(_uci_ctx, pkg);
 }
 
-int nakd_uci_save(struct uci_package *pkg) {
-    pthread_mutex_lock(&_uci_mutex);
-    int status = __uci_save(pkg);
-    pthread_mutex_unlock(&_uci_mutex);
-    return status;
-}
-
-static int __uci_commit(struct uci_package **pkg, bool overwrite) {
+int nakd_uci_commit(struct uci_package **pkg, bool overwrite) {
     /* 
      * nakd_log(L_DEBUG, "Commiting changes to UCI package \"%s\"",
      *                                             (*pkg)->e.name);
@@ -84,14 +70,7 @@ static int __uci_commit(struct uci_package **pkg, bool overwrite) {
     return uci_commit(_uci_ctx, pkg, overwrite);
 }
 
-int nakd_uci_commit(struct uci_package **pkg, bool overwrite) {
-    pthread_mutex_lock(&_uci_mutex);
-    int status = __uci_commit(pkg, overwrite);
-    pthread_mutex_unlock(&_uci_mutex);
-    return status;
-}
-
-static int __unload_uci_package(struct uci_package *pkg) {
+int nakd_unload_uci_package(struct uci_package *pkg) {
     /*
      * nakd_log(L_DEBUG, "Unloading UCI package \"%s\"", pkg->e.name);
      */
@@ -104,23 +83,16 @@ static int __unload_uci_package(struct uci_package *pkg) {
     return 0;
 }
 
-int nakd_unload_uci_package(struct uci_package *pkg) {
-    pthread_mutex_lock(&_uci_mutex);
-    int status = __unload_uci_package(pkg);
-    pthread_mutex_unlock(&_uci_mutex);
-    return status;
-}
-
 /* Execute a callback for every option 'option_name', in selected UCI package */
-static int _uci_option_foreach_pkg(const char *package, const char *option_name,
-                                 nakd_uci_option_foreach_cb cb, void *cb_priv) {
+int nakd_uci_option_foreach_pkg(const char *package, const char *option_name,
+                              nakd_uci_option_foreach_cb cb, void *cb_priv) {
     struct uci_element *sel;
     struct uci_section *section;
     struct uci_option *option;
     struct uci_package *uci_pkg;
     int cb_calls = 0;
     
-    uci_pkg = __load_uci_package(package);
+    uci_pkg = nakd_load_uci_package(package);
     if (uci_pkg == NULL)
         return 1;
 
@@ -144,11 +116,11 @@ static int _uci_option_foreach_pkg(const char *package, const char *option_name,
     }
 
 unload:
-    nakd_assert(__uci_save(uci_pkg) == UCI_OK);
+    nakd_assert(nakd_uci_save(uci_pkg) == UCI_OK);
     /* nakd probably wouldn't recover from these */
-    nakd_assert(__uci_commit(&uci_pkg, true) == UCI_OK);
+    nakd_assert(nakd_uci_commit(&uci_pkg, true) == UCI_OK);
     if (uci_pkg != NULL)
-        nakd_assert(__unload_uci_package(uci_pkg) == UCI_OK);
+        nakd_assert(nakd_unload_uci_package(uci_pkg) == UCI_OK);
     return cb_calls;
 }
 
@@ -157,7 +129,6 @@ int nakd_uci_option_foreach(const char *option_name,
                       nakd_uci_option_foreach_cb cb,
                                     void *cb_priv) {
     int cb_calls = 0;
-    pthread_mutex_lock(&_uci_mutex);
 
     char **uci_packages;
     if ((uci_list_configs(_uci_ctx, &uci_packages) != UCI_OK)) {
@@ -167,8 +138,8 @@ int nakd_uci_option_foreach(const char *option_name,
     }
 
     for (char **package = uci_packages; *package != NULL; package++) {
-        int pkg_calls = _uci_option_foreach_pkg(*package, option_name,
-                                                         cb, cb_priv);
+        int pkg_calls = nakd_uci_option_foreach_pkg(*package, option_name,
+                                                             cb, cb_priv);
         if (pkg_calls < 0) {
             cb_calls = -1;
             goto unlock;
@@ -177,20 +148,11 @@ int nakd_uci_option_foreach(const char *option_name,
     }
 
 unlock:
-    pthread_mutex_unlock(&_uci_mutex);
     free(uci_packages);
     return cb_calls;
 }
 
-int nakd_uci_option_foreach_pkg(const char *package, const char *option_name,
-                              nakd_uci_option_foreach_cb cb, void *cb_priv) {
-    pthread_mutex_lock(&_uci_mutex);
-    int status = _uci_option_foreach_pkg(package, option_name, cb, cb_priv);
-    pthread_mutex_unlock(&_uci_mutex);
-    return status;
-}
-
-int nakd_uci_set_nolock(struct uci_ptr *ptr) {
+int nakd_uci_set(struct uci_ptr *ptr) {
     if (uci_set(_uci_ctx, ptr)) {
         char *uci_err;
         uci_get_errorstr(_uci_ctx, &uci_err, "");
@@ -200,17 +162,7 @@ int nakd_uci_set_nolock(struct uci_ptr *ptr) {
     return 0;
 }
 
-int nakd_uci_set(struct uci_ptr *ptr) {
-    pthread_mutex_lock(&_uci_mutex);
-    int status = nakd_uci_set_nolock(ptr);
-    pthread_mutex_unlock(&_uci_mutex);
-    return status;
-}
-
-/*
- * In case some external library, like libiwinfo (wlan.c), would like to use
- * non-thread-safe UCI.
- */
+/* UCI isn't thread-safe - keep this lock during UCI operations */
 void nakd_uci_lock(void) {
     pthread_mutex_lock(&_uci_mutex);
 }
@@ -219,8 +171,8 @@ void nakd_uci_unlock(void) {
     pthread_mutex_unlock(&_uci_mutex);
 }
 
-json_object *nakd_get_option_nolock(const char *package, const char *section,
-                                                        const char *option) {
+json_object *nakd_get_option(const char *package, const char *section,
+                                                 const char *option) {
     struct uci_ptr option_ptr = {
         .package = package,
         .section = section,
