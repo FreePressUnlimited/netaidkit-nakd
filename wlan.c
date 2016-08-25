@@ -578,8 +578,9 @@ unlock:
 
 static int __wlan_scan(void) {
     nakd_log(L_DEBUG, "Scanning for wireless networks."); 
-    return __wlan_scan_iwinfo();
+    int status = __wlan_scan_iwinfo();
     nakd_log(L_DEBUG, "%d wireless networks available.", __wlan_netcount());
+    return status;
 }
 
 int nakd_wlan_scan(void) {
@@ -769,7 +770,6 @@ static void _configure_ap_work(void *priv) {
 
     json_object *jnetwork = priv;
 
-    nakd_uci_lock();
     nakd_mutex_lock(&_wlan_mutex);
     nakd_mutex_lock(&_wlan_config_mutex);
     /* Continue if exactly one UCI section was found and updated. */
@@ -783,7 +783,6 @@ static void _configure_ap_work(void *priv) {
 unlock:
     pthread_mutex_unlock(&_wlan_config_mutex);
     pthread_mutex_unlock(&_wlan_mutex);
-    nakd_uci_unlock();
     json_object_put(jnetwork);
 }
 
