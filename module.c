@@ -79,7 +79,9 @@ static void _cleanup_module(struct nakd_module *module) {
         }
     }
 
-    nakd_assert(module->cleanup != NULL && !module->cleanup());
+    if (module->cleanup != NULL && !module->cleanup())
+        nakd_terminate("Couldn't clean up module %s.", module->name);
+
     pthread_mutex_lock(&module->state_lock);
     module->state = NAKD_REMOVED;
     pthread_mutex_unlock(&module->state_lock);
