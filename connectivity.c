@@ -55,7 +55,7 @@ static int _arping_gateway(enum nakd_interface_id intf) {
 
 static char *_gateway_ip(void) {
     char *ip = NULL;
-    nakd_assert(nakd_shell_exec(NAKD_SCRIPT_PATH, &ip, 5, 10, GW_IP_SCRIPT) >= 0);
+    nakd_assert(nakd_shell_exec(NAKD_SCRIPT_PATH, &ip, 10, 15, GW_IP_SCRIPT) >= 0);
     return ip;
 }
 
@@ -212,7 +212,7 @@ static int _connectivity_cleanup(void) {
 
 static int _run_scripts_cb(const char *path, void *priv) {
     /* negated exit code - stop traversal if just one script exited with 0 */
-    return !nakd_shell_exec(NAKD_SCRIPT_PATH, NULL, 5, 10, path);
+    return !nakd_shell_exec(NAKD_SCRIPT_PATH, NULL, 10, 15, path);
 }
 
 /* returns 1 if just one script returns with 0 exit status */
