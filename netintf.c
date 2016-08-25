@@ -16,6 +16,7 @@
 #include "command.h"
 #include "misc.h"
 #include "thread.h"
+#include "nak_mutex.h"
 
 /* eg. "option nak_lan_tag 1" for wired lan interface */
 const char *nakd_uci_interface_tag[] = {
@@ -145,7 +146,7 @@ int nakd_disable_interface(enum nakd_interface_id id) {
     int status = 0;
 
     nakd_log(L_INFO, "Disabling %s.", nakd_interface_type[id]);
-    pthread_mutex_lock(&_netintf_mutex);
+    nakd_mutex_lock(&_netintf_mutex);
 
     if (nakd_update_iface_config(id, _disable_interface,
                                            NULL) != 1) {
@@ -178,7 +179,7 @@ static int _interface_disabled(struct uci_option *option, void *priv) {
 
 int nakd_interface_disabled(enum nakd_interface_id id) {
     int status;
-    pthread_mutex_lock(&_netintf_mutex);
+    nakd_mutex_lock(&_netintf_mutex);
     if (nakd_update_iface_config(id, _interface_disabled,
                                          &status) != 1) {
         status = -1;
@@ -224,7 +225,7 @@ static const char *__interface_name(enum nakd_interface_id id) {
 }
 
 const char *nakd_interface_name(enum nakd_interface_id id) {
-    pthread_mutex_lock(&_netintf_mutex);
+    nakd_mutex_lock(&_netintf_mutex);
     const char *name = __interface_name(id);
     pthread_mutex_unlock(&_netintf_mutex);
     return name;
@@ -237,7 +238,7 @@ int nakd_carrier_present(enum nakd_interface_id id) {
         return -1;
     }
 
-    pthread_mutex_lock(&_netintf_mutex);
+    nakd_mutex_lock(&_netintf_mutex);
     int status = intf->carrier_state;
     pthread_mutex_unlock(&_netintf_mutex);
     return status;

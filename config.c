@@ -6,6 +6,7 @@
 #include "log.h"
 #include "config.h"
 #include "module.h"
+#include "nak_mutex.h"
 
 #define CONFIG_UCI_PACKAGE "nakd"
 #define CONFIG_UCI_SECTION "nakd"
@@ -58,7 +59,7 @@ static int _default_config_key(const char *key, char **ret) {
 int nakd_config_key(const char *key, char **ret) {
     int status = 0;
     nakd_uci_lock();
-    pthread_mutex_lock(&_config_mutex);
+    nakd_mutex_lock(&_config_mutex);
 
     struct uci_package *nakd_pkg = nakd_load_uci_package(CONFIG_UCI_PACKAGE);
     if (nakd_pkg == NULL) {
@@ -124,7 +125,7 @@ int nakd_config_key_int(const char *key, int *ret) {
 int nakd_config_set(const char *key, const char *val) {
     int status = 0;
     nakd_uci_lock();
-    pthread_mutex_lock(&_config_mutex);
+    nakd_mutex_lock(&_config_mutex);
 
     struct uci_package *nakd_pkg = nakd_load_uci_package(CONFIG_UCI_PACKAGE);
     if (nakd_pkg == NULL) {

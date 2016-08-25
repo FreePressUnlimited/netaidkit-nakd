@@ -6,6 +6,7 @@
 #include "misc.h"
 #include "jsonrpc.h"
 #include "workqueue.h"
+#include "nak_mutex.h"
 
 void nakd_handle_message(json_object *jmsg, nakd_response_cb cb,
                        nakd_timeout_cb timeout_cb, void *priv) {
@@ -70,7 +71,7 @@ static void _cleanup_batch(struct batch *b) {
 static void _batch_completion(json_object *jresult, void *priv) {
     struct batch *b = priv;
 
-    pthread_mutex_lock(&b->mutex);
+    nakd_mutex_lock(&b->mutex);
     if (jresult != NULL)
         json_object_array_add(b->jresponse, jresult);
     int complete = b->requests == ++b->handled;

@@ -9,6 +9,7 @@
 #include "misc.h"
 #include "nak_signal.h"
 #include "module.h"
+#include "nak_mutex.h"
 
 #define TIMER_SIGNAL SIGALRM
 #define MAX_TIMERS 16
@@ -29,7 +30,7 @@ static int _timer_handler(siginfo_t *siginfo) {
     if (siginfo->si_signo != TIMER_SIGNAL)
         return 1;
 
-    pthread_mutex_lock(&_timers_mutex);
+    nakd_mutex_lock(&_timers_mutex);
     struct nakd_timer *timer = siginfo->si_value.sival_ptr;
     /* in case the timer was removed, but a signal is still pending */
     if (timer->active)
@@ -40,7 +41,7 @@ static int _timer_handler(siginfo_t *siginfo) {
 
 struct nakd_timer *nakd_timer_add(int interval_ms, nakd_timer_handler handler,
                                                void *priv, const char *name) {
-    pthread_mutex_lock(&_timers_mutex);
+    nakd_mutex_lock(&_timers_mutex);
 
     struct nakd_timer *timer = __get_timer_slot();
     if (timer == NULL)
@@ -87,13 +88,13 @@ void __nakd_timer_remove(struct nakd_timer *timer) {
 }
 
 void nakd_timer_remove(struct nakd_timer *timer) {
-    pthread_mutex_lock(&_timers_mutex);
+    nakd_mutex_lock(&_timers_mutex);
     __nakd_timer_remove(timer);
     pthread_mutex_unlock(&_timers_mutex);
 }
 
 static void _timer_remove_all(void) {
-    pthread_mutex_lock(&_timers_mutex);
+    nakd_mutex_lock(&_timers_mutex);
     for (struct nakd_timer *timer = _timers; timer < ARRAY_END(_timers);
                                                               timer++) {
         if (timer->active)

@@ -8,6 +8,7 @@
 #include "log.h"
 #include "misc.h"
 #include "module.h"
+#include "nak_mutex.h"
 
 #define THREAD_STACK_SIZE 65536
 #define MAX_THREADS 64
@@ -43,7 +44,7 @@ static int __active_threads(void) {
 }
 
 int nakd_active_threads() {
-    pthread_mutex_lock(&_threads_mutex);
+    nakd_mutex_lock(&_threads_mutex);
     int n = __active_threads();
     pthread_mutex_unlock(&_threads_mutex);
     return n;
@@ -55,12 +56,12 @@ static void _cleanup_thread(void *priv) {
     nakd_assert(_unit_initialized);
 
     nakd_log(L_DEBUG, "Cleaning up thread %d.", thr->tid);
-    pthread_mutex_lock(&_threads_mutex);
+    nakd_mutex_lock(&_threads_mutex);
     thr->active = 0;
     pthread_mutex_unlock(&_threads_mutex);
 
     /* see: _wait_for_completion() */
-    pthread_mutex_lock(&_shutdown_mutex);
+    nakd_mutex_lock(&_shutdown_mutex);
     pthread_cond_signal(&_shutdown_cv);
     pthread_mutex_unlock(&_shutdown_mutex);
 }
@@ -111,7 +112,7 @@ static int _thread_create(nakd_thread_routine start,
                      struct nakd_thread **uthrptr) {
     pthread_attr_setstacksize(&attr, THREAD_STACK_SIZE);
 
-    pthread_mutex_lock(&_threads_mutex);
+    nakd_mutex_lock(&_threads_mutex);
     struct nakd_thread *thr = __get_thread_slot();
     if (thr == NULL)
         return 1;
@@ -192,14 +193,14 @@ static int __thread_kill(struct nakd_thread *thr) {
 }
 
 int nakd_thread_kill(struct nakd_thread *thr) {
-    pthread_mutex_lock(&_threads_mutex);
+    nakd_mutex_lock(&_threads_mutex);
     int s = __thread_kill(thr);
     pthread_mutex_unlock(&_threads_mutex);
     return s;
 }
 
 void nakd_thread_killall(void) {
-    pthread_mutex_lock(&_threads_mutex);
+    nakd_mutex_lock(&_threads_mutex);
     for (struct nakd_thread *thr = _threads;
                   thr < ARRAY_END(_threads);
                                     thr++) {
@@ -226,7 +227,7 @@ static int _thread_init(void) {
 static void _wait_for_completion(void) {
     int threads;
 
-    pthread_mutex_lock(&_shutdown_mutex);
+    nakd_mutex_lock(&_shutdown_mutex);
     while (threads = __active_threads()) {
         nakd_log(L_INFO, "Shutting down threads, %d remaining", threads);
         pthread_cond_wait(&_shutdown_cv, &_shutdown_mutex);

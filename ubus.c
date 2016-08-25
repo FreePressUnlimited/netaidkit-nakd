@@ -5,6 +5,7 @@
 #include "log.h"
 #include "module.h"
 #include "nak_uci.h"
+#include "nak_mutex.h"
 
 #define UBUS_CALL_TIMEOUT 5 * 1000
 
@@ -31,7 +32,7 @@ int nakd_ubus_call(const char *namespace, const char* procedure,
     /* don't meddle in the configuration for now */
     nakd_uci_lock();
     /* ubus isn't thread-safe */
-    pthread_mutex_lock(&_ubus_mutex);
+    nakd_mutex_lock(&_ubus_mutex);
     /* subsequent inits free previous data */
     blob_buf_init(&ubus_buf, 0);
 

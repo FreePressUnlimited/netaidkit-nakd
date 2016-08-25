@@ -11,6 +11,7 @@
 #include "timer.h"
 #include "config.h"
 #include "module.h"
+#include "nak_mutex.h"
 
 #define MAX_CONDITIONS 16
 #define UPDATE_INTERVAL 33 /* ms */
@@ -44,7 +45,7 @@ static int _led_condition_active(const char *name) {
 }
 
 void nakd_led_condition_add(struct led_condition *cond) {
-    pthread_mutex_lock(&_led_mutex);
+    nakd_mutex_lock(&_led_mutex);
     if (_led_condition_active(cond->name))
         goto unlock;
 
@@ -66,7 +67,7 @@ static void _led_condition_remove(struct led_condition *cond) {
 }
 
 void nakd_led_condition_remove(const char *name) {
-    pthread_mutex_lock(&_led_mutex);
+    nakd_mutex_lock(&_led_mutex);
     for (struct led_condition *cond = _led_conditions;
           cond < ARRAY_END(_led_conditions); cond++) {
         if (!cond->active)
@@ -160,7 +161,7 @@ static void __swap_condition(struct led_condition *next) {
 }
 
 static void _led_sighandler(siginfo_t *timer_info, struct nakd_timer *timer) {
-    pthread_mutex_lock(&_led_mutex);
+    nakd_mutex_lock(&_led_mutex);
     struct led_condition *next = __choose_condition();
     if (next != NULL) {
         if (_current_condition == NULL || !_current_condition->active ||

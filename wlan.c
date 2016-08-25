@@ -19,6 +19,7 @@
 #include "config.h"
 #include "led.h"
 #include "misc.h"
+#include "nak_mutex.h"
 
 #define WLAN_NETWORK_LIST_PATH "/etc/nakd/wireless_networks"
 
@@ -52,7 +53,7 @@ static pthread_mutex_t _wlan_config_mutex;
 
 int nakd_wlan_connection_uptime(void) {
     int uptime;
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     if (_connected_timestamp)
         uptime = monotonic_time() - _connected_timestamp + 1;
     else
@@ -272,7 +273,7 @@ static int __in_range(const char *ssid) {
 }
 
 int nakd_wlan_in_range(const char *ssid) {
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     int s = __in_range(ssid);
     pthread_mutex_unlock(&_wlan_mutex);
     return s;
@@ -301,7 +302,7 @@ static json_object *__choose_network(void) {
 
 json_object *nakd_wlan_candidate(void) {
     json_object *jnetwork = NULL;
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
 
     int autoconnect; 
     if (nakd_config_key_int("wlan_autoconnect", &autoconnect))
@@ -324,7 +325,7 @@ static int __wlan_netcount(void) {
 }
 
 int nakd_wlan_netcount(void) {
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     int count = __wlan_netcount();
     pthread_mutex_unlock(&_wlan_mutex);
     return count;
@@ -353,7 +354,7 @@ static void _wlan_update_cb(struct ubus_request *req, int type,
         goto cleanup;
     }
 
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     if (_wireless_networks != NULL)
         json_object_put(_wireless_networks);
     _wireless_networks = jstate;
@@ -582,7 +583,7 @@ static int __wlan_scan(void) {
 }
 
 int nakd_wlan_scan(void) {
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     int status = __wlan_scan();
     pthread_mutex_unlock(&_wlan_mutex);
 }
@@ -697,7 +698,7 @@ static void __swap_current_network(json_object *jnetwork) {
 }
 
 json_object *nakd_wlan_current(void) {
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     if (_current_network != NULL)
         json_object_get(_current_network);
     json_object *jnetwork = _current_network;
@@ -727,7 +728,7 @@ static int _wlan_connect(json_object *jnetwork) {
     nakd_log(L_INFO, "Connecting to \"%s\" wireless network.", ssid);
     nakd_log(L_INFO, "Updating WLAN configuration.");
 
-    pthread_mutex_lock(&_wlan_config_mutex);
+    nakd_mutex_lock(&_wlan_config_mutex);
     int cfg_status = nakd_update_iface_config(NAKD_WLAN,
                     _update_wlan_config_ssid, jnetwork);
     pthread_mutex_unlock(&_wlan_config_mutex);
@@ -769,8 +770,8 @@ static void _configure_ap_work(void *priv) {
     json_object *jnetwork = priv;
 
     nakd_uci_lock();
-    pthread_mutex_lock(&_wlan_mutex);
-    pthread_mutex_lock(&_wlan_config_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_config_mutex);
     /* Continue if exactly one UCI section was found and updated. */
     if (nakd_update_iface_config(NAKD_AP, _update_wlan_config_ssid,
                                                   jnetwork) != 1) {
@@ -802,16 +803,16 @@ int nakd_wlan_connect(json_object *jnetwork) {
     if (nakd_wlan_connecting())
         return 0;
 
-    pthread_mutex_lock(&_wlan_status_mutex);
+    nakd_mutex_lock(&_wlan_status_mutex);
     _connecting = 1;
     _requested_wlan = jnetwork, json_object_get(_requested_wlan);
     pthread_mutex_unlock(&_wlan_status_mutex);
 
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     int status = _wlan_connect(jnetwork);
     pthread_mutex_unlock(&_wlan_mutex);
 
-    pthread_mutex_lock(&_wlan_status_mutex);
+    nakd_mutex_lock(&_wlan_status_mutex);
     _connecting = 0;
     json_object_put(_requested_wlan), _requested_wlan = NULL;
     pthread_mutex_unlock(&_wlan_status_mutex);
@@ -819,7 +820,7 @@ int nakd_wlan_connect(json_object *jnetwork) {
 }
 
 int nakd_wlan_connecting(void) {
-    pthread_mutex_lock(&_wlan_status_mutex);
+    nakd_mutex_lock(&_wlan_status_mutex);
     int connecting = _connecting;
     pthread_mutex_unlock(&_wlan_status_mutex);
     return connecting;
@@ -833,7 +834,7 @@ int nakd_wlan_connected(void) {
 }
 
 json_object *nakd_wlan_requested(void) {
-    pthread_mutex_lock(&_wlan_status_mutex);
+    nakd_mutex_lock(&_wlan_status_mutex);
     json_object *requested = _requested_wlan;
     json_object_get(requested);
     pthread_mutex_unlock(&_wlan_status_mutex);
@@ -852,7 +853,7 @@ static int __wlan_disconnect(void) {
 }
 
 int nakd_wlan_disconnect(void) {
-    pthread_mutex_lock(&_wlan_mutex);
+    nakd_mutex_lock(&_wlan_mutex);
     int status = __wlan_disconnect();
     pthread_mutex_unlock(&_wlan_mutex);
     return status;

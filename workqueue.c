@@ -11,6 +11,7 @@
 #include "log.h"
 #include "module.h"
 #include "timer.h"
+#include "nak_mutex.h"
 
 #define WQ_CANCEL_SIGNAL SIGCONT
 
@@ -37,7 +38,7 @@ static void __check_timeout(void) {
     /* TODO */
     struct workqueue *wq = nakd_wq;
 
-    pthread_mutex_lock(&_status_lock);
+    nakd_mutex_lock(&_status_lock);
     for (struct nakd_thread **thr = wq->threads;
             thr < wq->threads + wq->threadcount;
                                         thr++) {
@@ -148,7 +149,7 @@ static void _workqueue_loop(struct nakd_thread *thr) {
     _unblock_cancel_signal();
 
     for (;;) {
-        pthread_mutex_lock(&wq->lock);
+        nakd_mutex_lock(&wq->lock);
         if (wq->shutdown)
             break;
 
@@ -167,7 +168,7 @@ static void _workqueue_loop(struct nakd_thread *thr) {
         if (work->desc.name != NULL)
             nakd_log(L_DEBUG, "workqueue: processing \"%s\"", work->desc.name);
 
-        pthread_mutex_lock(&_status_lock);
+        nakd_mutex_lock(&_status_lock);
         work->start_time = monotonic_time();
         priv->current = work;
         pthread_mutex_unlock(&_status_lock);
@@ -187,7 +188,7 @@ static void _workqueue_loop(struct nakd_thread *thr) {
 
         pthread_cond_broadcast(&work->completed_cv);
 
-        pthread_mutex_lock(&_status_lock);
+        nakd_mutex_lock(&_status_lock);
         priv->current = NULL;
         pthread_mutex_unlock(&_status_lock);
         if (!work->desc.synchronous)
@@ -241,7 +242,7 @@ void nakd_workqueue_destroy(struct workqueue **wq) {
 }
 
 void nakd_workqueue_add(struct workqueue *wq, struct work *work) {
-    pthread_mutex_lock(&wq->lock);
+    nakd_mutex_lock(&wq->lock);
     struct work *new = __add_work(wq, work);
     new->status = WORK_QUEUED;
     pthread_cond_signal(&wq->cv);
@@ -252,7 +253,7 @@ void nakd_workqueue_add(struct workqueue *wq, struct work *work) {
 
 int nakd_work_pending(struct workqueue *wq, const char *name) {
     int s = 0;
-    pthread_mutex_lock(&wq->lock);
+    nakd_mutex_lock(&wq->lock);
 
     /* check queue */
     struct work *work = wq->work;
@@ -265,7 +266,7 @@ int nakd_work_pending(struct workqueue *wq, const char *name) {
     }
 
     /* check already dequeued */
-    pthread_mutex_lock(&_status_lock);
+    nakd_mutex_lock(&_status_lock);
     for (struct nakd_thread **thr = wq->threads;
             thr < wq->threads + wq->threadcount;
                                         thr++) {

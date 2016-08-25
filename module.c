@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include "module.h"
 #include "log.h"
+#include "nak_mutex.h"
 
 static void _init_module(struct nakd_module *module);
 static void _init_module_byname(const char *name);
@@ -18,7 +19,7 @@ static struct nakd_module *_module_byname(const char *name) {
 }
 
 static void _init_module(struct nakd_module *module) {
-    pthread_mutex_lock(&module->state_lock);
+    nakd_mutex_lock(&module->state_lock);
     module->state = NAKD_INITIALIZING;
     pthread_mutex_unlock(&module->state_lock);
 
@@ -29,7 +30,7 @@ static void _init_module(struct nakd_module *module) {
             struct nakd_module *depm = _module_byname(*name);
             nakd_assert(depm != NULL);
 
-            pthread_mutex_lock(&module->state_lock);
+            nakd_mutex_lock(&module->state_lock);
             if (depm->state != NAKD_REMOVED) {
                 pthread_mutex_unlock(&module->state_lock);
                 continue;
@@ -45,14 +46,14 @@ static void _init_module(struct nakd_module *module) {
     if (module->init != NULL && module->init())
         nakd_terminate("Couldn't initialize module %s.", module->name);
 
-    pthread_mutex_lock(&module->state_lock);
+    nakd_mutex_lock(&module->state_lock);
     module->state = NAKD_INITIALIZED;
     pthread_mutex_unlock(&module->state_lock);
     nakd_log(L_DEBUG, "Initialized module %s.", module->name);
 }
 
 static void _cleanup_module(struct nakd_module *module) {
-    pthread_mutex_lock(&module->state_lock);
+    nakd_mutex_lock(&module->state_lock);
     module->state = NAKD_REMOVING;
     pthread_mutex_unlock(&module->state_lock);
 
@@ -60,7 +61,7 @@ static void _cleanup_module(struct nakd_module *module) {
 
     /* Clean up dependent modules first */
     for (struct nakd_module **depm = __nakd_module_list; *depm; depm++) {
-        pthread_mutex_lock(&module->state_lock);
+        nakd_mutex_lock(&module->state_lock);
         if ((*depm)->state != NAKD_INITIALIZED) {
             pthread_mutex_unlock(&module->state_lock);
             continue;
@@ -82,7 +83,7 @@ static void _cleanup_module(struct nakd_module *module) {
     if (module->cleanup != NULL && !module->cleanup())
         nakd_terminate("Couldn't clean up module %s.", module->name);
 
-    pthread_mutex_lock(&module->state_lock);
+    nakd_mutex_lock(&module->state_lock);
     module->state = NAKD_REMOVED;
     pthread_mutex_unlock(&module->state_lock);
     nakd_log(L_DEBUG, "Cleaned up module: %s", module->name);
@@ -113,7 +114,7 @@ void nakd_cleanup_modules(void) {
 }
 
 int nakd_module_state(struct nakd_module *module) {
-    pthread_mutex_lock(&module->state_lock);
+    nakd_mutex_lock(&module->state_lock);
     int state = module->state;
     pthread_mutex_unlock(&module->state_lock);
     return state;

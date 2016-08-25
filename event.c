@@ -5,6 +5,7 @@
 #include "misc.h"
 #include "module.h"
 #include "workqueue.h"
+#include "nak_mutex.h"
 
 #define MAX_EVENT_HANDLERS 64
 
@@ -40,7 +41,7 @@ static struct event_handler *__get_event_handler_slot(void) {
 
 struct event_handler *nakd_event_add_handler(enum nakd_event event,
                               nakd_event_handler hnd, void *priv) {
-    pthread_mutex_lock(&_event_mutex);
+    nakd_mutex_lock(&_event_mutex);
     struct event_handler *handler = __get_event_handler_slot();
     if (handler == NULL)
         nakd_terminate("Out of event handler slots.");
@@ -56,7 +57,7 @@ struct event_handler *nakd_event_add_handler(enum nakd_event event,
 }
 
 void nakd_event_remove_handler(struct event_handler *handler) {
-    pthread_mutex_lock(&_event_mutex);
+    nakd_mutex_lock(&_event_mutex);
     handler->active = 0;
     pthread_mutex_unlock(&_event_mutex);
 }
@@ -67,7 +68,7 @@ static void _call_handler(void *priv) {
 }
 
 void nakd_event_push(enum nakd_event event) {
-    pthread_mutex_lock(&_event_mutex);
+    nakd_mutex_lock(&_event_mutex);
     for (struct event_handler *handler = _event_handlers;
          handler < ARRAY_END(_event_handlers); handler++) {
         if (handler->active && handler->event == event) {

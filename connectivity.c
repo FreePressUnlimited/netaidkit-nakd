@@ -16,6 +16,7 @@
 #include "shell.h"
 #include "jsonrpc.h"
 #include "command.h"
+#include "nak_mutex.h"
 
 #define CONNECTIVITY_SCRIPT_PATH(zone) NAKD_SCRIPT_PATH "connectivity/" zone
 #define GW_ARPING_SCRIPT NAKD_SCRIPT("util/arping_gateway.sh")
@@ -65,14 +66,14 @@ static void _update_status(void) {
     nakd_log(L_DEBUG, "Updating Internet connectivity status...");
     int internet = nakd_internet_connectivity();
 
-    pthread_mutex_lock(&_connectivity_status_mutex);
+    nakd_mutex_lock(&_connectivity_status_mutex);
     _connectivity_local = local;
     _connectivity_internet = internet; 
     pthread_mutex_unlock(&_connectivity_status_mutex);
 }
 
 static void _connectivity_update(void *priv) {
-    pthread_mutex_lock(&_connectivity_mutex);
+    nakd_mutex_lock(&_connectivity_mutex);
 
     if (nakd_wlan_connecting()) {
         nakd_log(L_DEBUG, "Connecting to wireless network, connectivity update"

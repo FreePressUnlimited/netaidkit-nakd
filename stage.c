@@ -16,6 +16,7 @@
 #include "timer.h"
 #include "workqueue.h"
 #include "config.h"
+#include "nak_mutex.h"
 
 #define NAKD_STAGE_SCRIPT_PATH NAKD_SCRIPT_PATH "stage/"
 #define NAKD_STAGE_SCRIPT_DIR_FMT (NAKD_STAGE_SCRIPT_PATH "%s")
@@ -47,7 +48,7 @@ static void __clear_stage_status(void) {
 }
 
 static void _clear_stage_status(void) {
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     __clear_stage_status();
     pthread_mutex_unlock(&_stage_status_mutex);
 }
@@ -304,7 +305,7 @@ static int _run_stage_scripts(struct stage *stage) {
 
 static int _start_openvpn(struct stage *stage) {
     if (nakd_start_openvpn()) {
-        pthread_mutex_lock(&_stage_status_mutex);
+        nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Internal error while starting OpenVPN daemon";
         pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
@@ -314,7 +315,7 @@ static int _start_openvpn(struct stage *stage) {
 
 static int _stop_openvpn(struct stage *stage) {
     if (nakd_stop_openvpn()) {
-        pthread_mutex_lock(&_stage_status_mutex);
+        nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Internal error while stopping OpenVPN daemon";
         pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
@@ -324,7 +325,7 @@ static int _stop_openvpn(struct stage *stage) {
 
 static int _run_uci_hooks(struct stage *stage) {
     if (nakd_call_uci_hooks(stage->hooks, stage->name)) {
-        pthread_mutex_lock(&_stage_status_mutex);
+        nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Internal error while rewriting UCI configuration";
         pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
@@ -333,10 +334,10 @@ static int _run_uci_hooks(struct stage *stage) {
 }
 
 static void _stage_spec(void *priv) {
-    pthread_mutex_lock(&_stage_change_mutex);
+    nakd_mutex_lock(&_stage_change_mutex);
     nakd_led_condition_add(&_led_stage_working);
 
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     if (_requested_stage == NULL || _current_stage == _requested_stage) {
         _requested_stage = NULL;
         pthread_mutex_unlock(&_stage_status_mutex);
@@ -344,7 +345,7 @@ static void _stage_spec(void *priv) {
     }
     pthread_mutex_unlock(&_stage_status_mutex);
 
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     __clear_stage_status();
     pthread_mutex_unlock(&_stage_status_mutex);
 
@@ -358,7 +359,7 @@ static void _stage_spec(void *priv) {
                    nakd_connectivity_string[(int)(current_connectivity)],
                    nakd_connectivity_string[(int)(needed_connectivity)]);
 
-        pthread_mutex_lock(&_stage_status_mutex);
+        nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Insufficient connectivity level.";
         pthread_mutex_unlock(&_stage_status_mutex);
         goto unlock;
@@ -367,12 +368,12 @@ static void _stage_spec(void *priv) {
     nakd_log(L_INFO, "Stage %s", _requested_stage->name);
     struct stage *previous = _current_stage;
 
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     _stage_status.step_count = _step_count(_requested_stage);
     pthread_mutex_unlock(&_stage_status_mutex);
     for (const struct stage_step *step = _requested_stage->work;
                                    step->name != NULL; step++) {
-        pthread_mutex_lock(&_stage_status_mutex);
+        nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.step++;
         _stage_status.step_name = step->name;
         pthread_mutex_unlock(&_stage_status_mutex);
@@ -383,7 +384,7 @@ static void _stage_spec(void *priv) {
             goto unlock;
     }
 
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     _current_stage = _requested_stage;
     _requested_stage = NULL;
     pthread_mutex_unlock(&_stage_status_mutex);
@@ -455,8 +456,8 @@ static int _stage_cleanup(void) {
 }
 
 static int _stage_spec_update_requested(struct stage *stage, int save) {
-    pthread_mutex_lock(&_stage_change_mutex);
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_change_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     _requested_stage = stage;
     if (save)
         nakd_config_set("stage", stage->name);
@@ -554,7 +555,7 @@ static json_object *__desc_stage(struct stage *stage) {
 }
 
 const struct stage *nakd_stage_current(void) {
-    pthread_mutex_lock(&_stage_status_mutex);
+    nakd_mutex_lock(&_stage_status_mutex);
     const struct stage * current = (const struct stage *)(_current_stage);
     pthread_mutex_unlock(&_stage_status_mutex);
     return current;

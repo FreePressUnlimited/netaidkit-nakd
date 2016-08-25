@@ -20,6 +20,7 @@
 #include "module.h"
 #include "io.h"
 #include "command.h"
+#include "nak_mutex.h"
 
 #define MAX_CONNECTIONS     64
 #define SOCK_DIR       "/run/nakd"
@@ -49,7 +50,7 @@ static sem_t _connections_sem;
 static int _server_shutdown;
 
 static void _connection_get(struct connection *c) {
-    pthread_mutex_lock(&c->mutex);
+    nakd_mutex_lock(&c->mutex);
     c->refcount++;
     pthread_mutex_unlock(&c->mutex);
 }
@@ -64,7 +65,7 @@ static void _connection_free(struct connection *c) {
 }
 
 static void _connection_put(struct connection *c) {
-    pthread_mutex_lock(&c->mutex);
+    nakd_mutex_lock(&c->mutex);
     int s;
     nakd_assert((s = --c->refcount) >= 0);
     pthread_mutex_unlock(&c->mutex);
@@ -76,7 +77,7 @@ static void _connection_put(struct connection *c) {
 }
 
 static void _connection_shutdown(struct connection *c) {
-    pthread_mutex_lock(&c->mutex);
+    nakd_mutex_lock(&c->mutex);
     if (c->shutdown)
         goto unlock;
 
@@ -150,7 +151,7 @@ static void _send_response(struct connection *c, json_object *jresponse) {
 
     int nb_resp;
     const char *jrstrp = jrstr;
-    pthread_mutex_lock(&c->write_mutex);
+    nakd_mutex_lock(&c->write_mutex);
     while (nb_resp = strlen(jrstrp)) {
         int nb_sent = send(c->sockfd, jrstrp, nb_resp, 0);
         if (nb_sent == -1) {

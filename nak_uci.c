@@ -3,6 +3,7 @@
 #include "nak_uci.h"
 #include "log.h"
 #include "module.h"
+#include "nak_mutex.h"
 
 static pthread_mutex_t _uci_mutex;
 static struct uci_context *_uci_ctx = NULL;
@@ -164,7 +165,7 @@ int nakd_uci_set(struct uci_ptr *ptr) {
 
 /* UCI isn't thread-safe - keep this lock during UCI operations */
 void nakd_uci_lock(void) {
-    pthread_mutex_lock(&_uci_mutex);
+    nakd_mutex_lock(&_uci_mutex);
 }
 
 void nakd_uci_unlock(void) {
