@@ -5,7 +5,7 @@
 #include <setjmp.h>
 #include "thread.h"
 
-#define NAKD_DEFAULT_WQ_THREADS 4
+#define NAKD_DEFAULT_WQ_THREADS 8
 
 typedef void (*nakd_work_func)(void *priv);
 
