@@ -579,7 +579,7 @@ unlock:
 static int __wlan_scan(void) {
     nakd_log(L_DEBUG, "Scanning for wireless networks."); 
     return __wlan_scan_iwinfo();
-    nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
+    nakd_log(L_DEBUG, "%d wireless networks available.", __wlan_netcount());
 }
 
 int nakd_wlan_scan(void) {
