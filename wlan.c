@@ -318,10 +318,14 @@ json_object *nakd_wlan_candidate(void) {
     return jnetwork;
 }
 
+static int __wlan_netcount(void) {
+    return _wireless_networks == NULL ? 0 : json_object_array_length(
+                                                 _wireless_networks);
+}
+
 int nakd_wlan_netcount(void) {
     pthread_mutex_lock(&_wlan_mutex);
-    int count = _wireless_networks == NULL ? 0 :
-        json_object_array_length(_wireless_networks);
+    int count = __wlan_netcount();
     pthread_mutex_unlock(&_wlan_mutex);
     return count;
 }
@@ -548,13 +552,13 @@ static struct led_condition _led_scan_working = {
     .blink.count = -1, /*infinite */
 };
 
-static int _wlan_scan_iwinfo(void) {
+static int __wlan_scan_iwinfo(void) {
     int status;
     struct work *scan_wq_entry = nakd_alloc_work(&_iwinfo_scan_desc);
 
     nakd_led_condition_add(&_led_scan_working);
 
-    pthread_mutex_lock(&_wlan_mutex);
+    /* lock */
     nakd_workqueue_add(nakd_wq, scan_wq_entry);
     if (scan_wq_entry->status == WORK_CANCELED) {
         status = 1;
@@ -565,16 +569,22 @@ static int _wlan_scan_iwinfo(void) {
     _cleanup_iwinfo_scan(&_iwinfo_scan_priv);
 
 unlock:
-    pthread_mutex_unlock(&_wlan_mutex);
+    /* unlock */
     nakd_free_work(scan_wq_entry);
     nakd_led_condition_remove(_led_scan_working.name);
     return status;
 }
 
-int nakd_wlan_scan(void) {
+static int __wlan_scan(void) {
     nakd_log(L_DEBUG, "Scanning for wireless networks."); 
-    return _wlan_scan_iwinfo();
+    return __wlan_scan_iwinfo();
     nakd_log(L_DEBUG, "%d wireless networks available.", nakd_wlan_netcount());
+}
+
+int nakd_wlan_scan(void) {
+    pthread_mutex_lock(&_wlan_mutex);
+    int status = __wlan_scan();
+    pthread_mutex_unlock(&_wlan_mutex);
 }
 
 const char *nakd_net_encryption(json_object *jnetwork) {
@@ -927,14 +937,16 @@ response:
 json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
     json_object *jresponse;
 
-    // TODO nakd_command_timedlock
-    if (nakd_wlan_scan()) {
+    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
+        goto response;
+
+    if (__wlan_scan()) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
            "Internal error - couldn't update wireless network list");
-        return jresponse;
+        goto unlock;
     }
 
-    int netcount = nakd_wlan_netcount();
+    int netcount = __wlan_netcount();
 
     json_object *jresult = json_object_new_object();
     json_object *jnetcount = json_object_new_int(netcount);
@@ -943,7 +955,12 @@ json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
     json_object_object_add(jresult, "netcount", jnetcount);
     json_object_object_add(jresult, "last_scan", jlastscan);
 
-    return nakd_jsonrpc_response_success(jcmd, jresult);
+    jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+response:
+    return jresponse;
 }
 
 json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
