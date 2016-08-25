@@ -4,7 +4,7 @@
 #include <json-c/json.h>
 #include "module.h"
 
-#define NAKD_COMMAND_MUTEX_TIMEOUT 3
+#define NAKD_COMMAND_MUTEX_TIMEOUT 10
 
 typedef json_object *(*nakd_cmd_handler)(json_object *jcmd, void *priv);
 typedef void (*nakd_response_cb)(json_object *jresp, void *priv);
