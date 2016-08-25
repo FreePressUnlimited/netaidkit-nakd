@@ -67,6 +67,8 @@ static void _cleanup_module(struct nakd_module *module) {
         }
         pthread_mutex_unlock(&module->state_lock);
 
+        if ((*depm)->deps == NULL)
+            continue;
         for (const char **depname = (*depm)->deps; *depname; depname++) {
             if (!strcmp(*depname, module->name)) {
                 nakd_log(L_DEBUG, "Cleaning up %s dependent module: %s", module->name,
