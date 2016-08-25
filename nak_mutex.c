@@ -9,7 +9,7 @@ void _nakd_mutex_lock(pthread_mutex_t *lock, const char *lock_name,
                                       const char *file, int line) {
     for (;;) {
         struct timespec timeout;
-        clock_gettime(CLOCK_MONOTONIC, &timeout);
+        clock_gettime(CLOCK_REALTIME, &timeout);
         timeout.tv_sec += NAKD_MUTEX_TIMEOUT;
         int lock_status = pthread_mutex_timedlock(lock, &timeout);
         if (lock_status == ETIMEDOUT) {
