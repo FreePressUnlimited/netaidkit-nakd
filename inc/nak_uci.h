@@ -21,10 +21,9 @@ int nakd_uci_save(struct uci_package *pkg);
 int nakd_uci_commit(struct uci_package **pkg, bool overwrite);
 int nakd_unload_uci_package(struct uci_package *pkg);
 int nakd_uci_set(struct uci_ptr *ptr);
-int nakd_uci_set_nolock(struct uci_ptr *ptr);
 void nakd_uci_lock(void);
 void nakd_uci_unlock(void);
-json_object *nakd_get_option_nolock(const char *package, const char *section,
-                                                         const char *option);
+json_object *nakd_get_option(const char *package, const char *section,
+                                                  const char *option);
 
 #endif

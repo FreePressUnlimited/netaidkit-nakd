@@ -607,7 +607,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
         .value = ssid 
     };
     /* this function is called from nakd_uci_, no locking required for uci_set */
-    nakd_uci_set_nolock(&ssid_ptr);
+    nakd_uci_set(&ssid_ptr);
 
     const char *encryption = nakd_net_encryption(jnetwork);
     nakd_assert(encryption != NULL); /* see: _validate_*_config */
@@ -621,7 +621,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
                 .option = "key",
                 .value = key
             };
-            nakd_uci_set_nolock(&key_ptr);
+            nakd_uci_set(&key_ptr);
         } else {
             nakd_log(L_CRIT, "Encryption set, but no passphrase. "
                                  "Configuration left unchanged.");
@@ -635,7 +635,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
         .option = "encryption",
         .value = encryption
     };
-    nakd_uci_set_nolock(&enc_ptr);
+    nakd_uci_set(&enc_ptr);
 
     int disabled = nakd_net_disabled(jnetwork);
     disabled = disabled == -1 ? 0 : disabled;
@@ -645,7 +645,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
         .option = "disabled",
         .value = disabled ? "1" : "0"
     };
-    nakd_uci_set_nolock(&disabled_ptr);
+    nakd_uci_set(&disabled_ptr);
 
     int hidden = nakd_net_hidden(jnetwork);
     if (hidden != -1) {
@@ -655,7 +655,7 @@ static int _update_wlan_config_ssid(struct uci_option *option, void *priv) {
             .option = "hidden",
             .value = hidden ? "1" : "0"
         };
-        nakd_uci_set_nolock(&hidden_ptr);
+        nakd_uci_set(&hidden_ptr);
     }
     return 0;
 }
@@ -717,10 +717,12 @@ static int _wlan_connect(json_object *jnetwork) {
     nakd_log(L_INFO, "Connecting to \"%s\" wireless network.", ssid);
     nakd_log(L_INFO, "Updating WLAN configuration.");
 
+    nakd_uci_lock();
     pthread_mutex_lock(&_wlan_config_mutex);
     int cfg_status = nakd_update_iface_config(NAKD_WLAN,
                     _update_wlan_config_ssid, jnetwork);
     pthread_mutex_unlock(&_wlan_config_mutex);
+    nakd_uci_unlock();
     /* Continue if exactly one UCI section was found and updated. */
     if (cfg_status != 1)
         return cfg_status;
@@ -758,6 +760,7 @@ static void _configure_ap_work(void *priv) {
 
     json_object *jnetwork = priv;
 
+    nakd_uci_lock();
     pthread_mutex_lock(&_wlan_mutex);
     pthread_mutex_lock(&_wlan_config_mutex);
     /* Continue if exactly one UCI section was found and updated. */
@@ -771,6 +774,7 @@ static void _configure_ap_work(void *priv) {
 unlock:
     pthread_mutex_unlock(&_wlan_config_mutex);
     pthread_mutex_unlock(&_wlan_mutex);
+    nakd_uci_unlock();
     json_object_put(jnetwork);
 }
 
@@ -1113,14 +1117,15 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
     const char *package = ifs->package->e.name;
     const char *section = ifs->e.name;
 
+    /* nakd_uci_lock() called in nakd_update_iface_config() */
     json_object *jssid =
-        nakd_get_option_nolock(package, section, "ssid");
+        nakd_get_option(package, section, "ssid");
     json_object *jenc =
-        nakd_get_option_nolock(package, section, "encryption");;
+        nakd_get_option(package, section, "encryption");;
     json_object *jdisabled =
-        nakd_get_option_nolock(package, section, "disabled");;
+        nakd_get_option(package, section, "disabled");;
     json_object *jhidden =
-        nakd_get_option_nolock(package, section, "hidden");
+        nakd_get_option(package, section, "hidden");
 
     jdisabled = _json_strtobool(jdisabled, 0);
     jhidden = _json_strtobool(jhidden, 0);

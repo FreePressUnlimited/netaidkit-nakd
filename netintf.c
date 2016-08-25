@@ -1,5 +1,3 @@
-#include <stdlib.h>
-#include <string.h>
 #include <time.h>
 #include <pthread.h>
 #include <json-c/json.h>
@@ -103,6 +101,7 @@ static intf_update_cb _intf_update_cbs[] = {
 int nakd_update_iface_config(enum nakd_interface_id id,
         nakd_uci_option_foreach_cb cb, void *priv) {
     /* Find interface tag, execute callback. */
+    nakd_uci_lock();
     int tags_found = nakd_uci_option_foreach(
                   nakd_uci_interface_tag[id],
                                    cb, priv);
@@ -120,6 +119,7 @@ int nakd_update_iface_config(enum nakd_interface_id id,
                                         nakd_uci_interface_tag[id],
                                           nakd_interface_type[id]);
     }
+    nakd_uci_unlock();
     return tags_found;
 }
 

@@ -44,9 +44,11 @@ int nakd_call_uci_hooks(struct nakd_uci_hook *hook_list, const char *state) {
             .hook = hook
         };
 
+        nakd_uci_lock();
         int calls = nakd_uci_option_foreach(hook->name,
             (nakd_uci_option_foreach_cb)(_hook_foreach_cb),
                                                  &cb_data);
+        nakd_uci_unlock();
         if (calls < 0)
             return 1;
     

@@ -57,6 +57,7 @@ static int _default_config_key(const char *key, char **ret) {
 
 int nakd_config_key(const char *key, char **ret) {
     int status = 0;
+    nakd_uci_lock();
     pthread_mutex_lock(&_config_mutex);
 
     struct uci_package *nakd_pkg = nakd_load_uci_package(CONFIG_UCI_PACKAGE);
@@ -67,8 +68,6 @@ int nakd_config_key(const char *key, char **ret) {
         goto unlock;
     }
 
-    /* UCI isn't thread-safe - lock before using libuci calls */
-    nakd_uci_lock();
 
     struct uci_section *nakd_s = uci_lookup_section(nakd_pkg->ctx, nakd_pkg,
                                                         CONFIG_UCI_SECTION);
@@ -98,11 +97,11 @@ int nakd_config_key(const char *key, char **ret) {
     *ret = strdup(opt->v.string);
 
 cleanup:
-    nakd_uci_unlock();
     if (nakd_unload_uci_package(nakd_pkg))
         nakd_log(L_CRIT, "Couldn't unload nakd UCI package.");
 unlock:
     pthread_mutex_unlock(&_config_mutex);
+    nakd_uci_unlock();
     return status;
 }
 
@@ -124,6 +123,7 @@ int nakd_config_key_int(const char *key, int *ret) {
 
 int nakd_config_set(const char *key, const char *val) {
     int status = 0;
+    nakd_uci_lock();
     pthread_mutex_lock(&_config_mutex);
 
     struct uci_package *nakd_pkg = nakd_load_uci_package(CONFIG_UCI_PACKAGE);
@@ -134,8 +134,6 @@ int nakd_config_set(const char *key, const char *val) {
         status = 1;
         goto unlock;
     }
-
-    nakd_uci_lock();
 
     struct uci_section *nakd_s = uci_lookup_section(nakd_pkg->ctx, nakd_pkg,
                                                         CONFIG_UCI_SECTION);
@@ -157,13 +155,14 @@ int nakd_config_set(const char *key, const char *val) {
     /* TODO compare usage w/ existing UCI implementation */
     nakd_uci_save(nakd_pkg);
     nakd_uci_commit(&nakd_pkg, true);
+    goto cleanup;
 
 cleanup:
-    nakd_uci_unlock();
     if (nakd_unload_uci_package(nakd_pkg))
         nakd_log(L_CRIT, "Couldn't unload nakd UCI package.");
 unlock:
     pthread_mutex_unlock(&_config_mutex);
+    nakd_uci_unlock();
     return status;
 }
 
