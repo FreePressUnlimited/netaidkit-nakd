@@ -182,6 +182,7 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
             }
             sleep(1);
         }
+        nakd_log(L_NOTICE, "PID %d finished execution.", pid);
 
         close(pipe_fd[PIPE_WRITE]);
 
