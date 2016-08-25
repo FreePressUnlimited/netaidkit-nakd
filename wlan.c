@@ -717,12 +717,10 @@ static int _wlan_connect(json_object *jnetwork) {
     nakd_log(L_INFO, "Connecting to \"%s\" wireless network.", ssid);
     nakd_log(L_INFO, "Updating WLAN configuration.");
 
-    nakd_uci_lock();
     pthread_mutex_lock(&_wlan_config_mutex);
     int cfg_status = nakd_update_iface_config(NAKD_WLAN,
                     _update_wlan_config_ssid, jnetwork);
     pthread_mutex_unlock(&_wlan_config_mutex);
-    nakd_uci_unlock();
     /* Continue if exactly one UCI section was found and updated. */
     if (cfg_status != 1)
         return cfg_status;
