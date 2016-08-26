@@ -677,6 +677,8 @@ static int _reload_wireless_config(void) {
     int status = 0;
 
     nakd_log(L_INFO, "Restarting WLAN.");
+    nakd_uci_lock();    
+
     char *output;
     if (nakd_shell_exec(NAKD_SCRIPT_PATH, &output, 10, 15, WLAN_UPDATE_SCRIPT)) {
         nakd_log(L_CRIT, "Error while running " WLAN_UPDATE_SCRIPT);
@@ -688,6 +690,7 @@ static int _reload_wireless_config(void) {
     free(output);
 
 unlock:
+    nakd_uci_unlock();
     return status;
 }
 
