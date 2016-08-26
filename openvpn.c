@@ -190,16 +190,20 @@ static int _writeline(const char *line) {
 }                                                                                 
 
 static char *_call_command(const char *command) {
+    char *resp = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
     if (_open_mgmt_socket())
-        return NULL;
+        goto response;
     _flush();
     if (_writeline(command))
-        return NULL;
+        goto csocket;
 
-    char *resp = _getline();
+    resp = _getline();
+
+csocket:
     _close_mgmt_socket();
+response:
     return resp;
 }
 
@@ -224,17 +228,18 @@ static void _free_multiline(char ***lines) {
 }
 
 static char **_call_command_multiline(const char *command) {
+    char **lines = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
     if (_open_mgmt_socket())
-        return NULL;
+        goto response;
     _flush();
     if (_writeline(command))
-        return NULL;
+        goto csocket;
 
     /* read response */
     const size_t lines_max = 128;
-    char **lines = malloc(sizeof(*lines) * lines_max);
+    lines = malloc(sizeof(*lines) * lines_max);
     nakd_assert(lines != NULL);
     for (char **line = lines; line < lines + lines_max; line++)
         *line = NULL;
@@ -246,7 +251,7 @@ static char **_call_command_multiline(const char *command) {
 
         if (!strncmp(_line, "END", sizeof("END") - 1)) {
             free(_line);
-            goto response;
+            goto csocket;
         }
 
         *line = _line;        
@@ -254,8 +259,9 @@ static char **_call_command_multiline(const char *command) {
 
 err:
      _free_multiline(&lines);
-response:
+csocket:
     _close_mgmt_socket();
+response:
     return lines;
 }
 
