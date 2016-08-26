@@ -173,14 +173,14 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
         while (!waitpid(pid, &wstatus, WUNTRACED | WNOHANG)) {
             time_t timestamp = monotonic_time();
             if (timeout_kill && (timestamp > start_timestamp + timeout_kill)) {
-                nakd_log(L_WARNING, "Timeout: sending SIGKILL to PID %d (%s)",
-                                                                pid, argv[0]);
-                kill(pid, SIGKILL);
+                nakd_log(L_WARNING, "Timeout: sending SIGKILL to PID %d process group (%s)",
+                                                                              pid, argv[0]);
+                kill(-pid, SIGKILL);
             }
             else if (timeout_term && (timestamp > start_timestamp + timeout_term)) {
-                nakd_log(L_WARNING, "Timeout: sending SIGTERM to PID %d (%s)",
-                                                                pid, argv[0]);
-                kill(pid, SIGTERM);
+                nakd_log(L_WARNING, "Timeout: sending SIGTERM to PID %d process group(%s)",
+                                                                             pid, argv[0]);
+                kill(-pid, SIGTERM);
             }
             sleep(1);
         }
