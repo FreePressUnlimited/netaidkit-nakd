@@ -86,6 +86,9 @@ int main(int argc, char *argv[]) {
     if ((pid_fd = _write_pid(PID_PATH)) == -1)
         nakd_terminate("writePid()");
 
+    nakd_log(L_DEBUG, "Running initscripts...");
+    nakd_shell_run_scripts("init", 0, 0); 
+
     /* TODO: CHECK IF CURRENT USER IS ROOT AND IF NAKD USER EXISTS */
 
     nakd_init_modules();
