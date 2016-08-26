@@ -504,15 +504,15 @@ json_object *cmd_openvpn(json_object *jcmd, void *arg) {
          cmd < ARRAY_END(_openvpn_commands); cmd++) {
         if (!strcasecmp(cmd->name, command)) {
             jresponse = cmd->impl(jcmd);
-            goto response;
+            goto unlock;
         }
     }
-
-    pthread_mutex_unlock(&_command_mutex);
 
     jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
       "Invalid parameters - no such OpenVPN management command");
 
+unlock:
+    pthread_mutex_unlock(&_command_mutex);
 response:
     return jresponse;
 }
