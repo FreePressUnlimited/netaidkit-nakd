@@ -587,6 +587,7 @@ int nakd_wlan_scan(void) {
     nakd_mutex_lock(&_wlan_mutex);
     int status = __wlan_scan();
     pthread_mutex_unlock(&_wlan_mutex);
+    return status;
 }
 
 const char *nakd_net_encryption(json_object *jnetwork) {
