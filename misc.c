@@ -23,7 +23,7 @@ void set_socket_timeout(int fd, int sec) {
                                sizeof connect_timeout));
 }
 
-void log_execve(const char * const argv[]) {
+void log_execve(int priority, const char *format, const char * const argv[]) {
     int format_len = 0;
     char *execve_log = malloc(NAKD_MAX_ARG_STRLEN);
     nakd_assert(execve_log != NULL);
@@ -32,6 +32,6 @@ void log_execve(const char * const argv[]) {
         format_len += snprintf(execve_log + format_len, NAKD_MAX_ARG_STRLEN
                                                - format_len, " %s", *argv);
 
-    nakd_log(L_DEBUG, execve_log);
+    nakd_log(priority, format, execve_log);
     free(execve_log);
 }

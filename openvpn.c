@@ -279,7 +279,7 @@ int nakd_start_openvpn() {
     int pid = fork();
     nakd_assert(pid >= 0);
 
-    log_execve((const char * const *)(argv));
+    log_execve(L_DEBUG, "Starting OpenVPN: %s", (const char * const *)(argv));
     if (pid == 0) /* child */ {
         setsid();
         execve(argv[0], argv, NULL);

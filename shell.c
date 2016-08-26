@@ -125,7 +125,7 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
     int status = -1;
 
     nakd_log_execution_point();
-    log_execve((const char **)(argv));
+    log_execve(L_DEBUG, "Starting: %s", (const char **)(argv));
 
     if (argv[1] == NULL) {
         nakd_log(L_CRIT, "argv should hold at least 1 argument.");
@@ -185,6 +185,7 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
             sleep(1);
         }
         nakd_log(L_NOTICE, "PID %d (%s) finished execution.", pid, argv[0]);
+        log_execve(L_DEBUG, "Finished: %s", argv);
 
         close(pipe_fd[PIPE_WRITE]);
 
