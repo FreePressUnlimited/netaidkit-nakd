@@ -20,10 +20,11 @@ void nakd_handle_message(json_object *jmsg, nakd_response_cb cb,
         return;
     }
 
-    json_object *jresp = nakd_jsonrpc_response_error(jmsg, INVALID_REQUEST,
-                                                                     NULL);
-    if (cb != NULL)
+    if (cb != NULL) {
+        json_object *jresp = nakd_jsonrpc_response_error(jmsg, INVALID_REQUEST,
+                                                                         NULL);
         cb(jresp, priv);
+    }
 }
 
 void nakd_handle_single(json_object *jreq, nakd_response_cb cb,
@@ -31,10 +32,11 @@ void nakd_handle_single(json_object *jreq, nakd_response_cb cb,
     const char *method_name = nakd_jsonrpc_method(jreq);
     if (method_name == NULL) {
         nakd_log(L_WARNING, "Couldn't get method name from request");
-        json_object *jresponse = nakd_jsonrpc_response_error(jreq,
-                                          METHOD_NOT_FOUND, NULL);
-        if (cb != NULL)
+        if (cb != NULL) {
+            json_object *jresponse = nakd_jsonrpc_response_error(jreq,
+                                              METHOD_NOT_FOUND, NULL);
             cb(jresponse, priv);
+        }
     }
     
     nakd_log(L_DEBUG, "Handling request, method=\"%s\".", method_name);
