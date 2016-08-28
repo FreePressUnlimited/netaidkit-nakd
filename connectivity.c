@@ -42,7 +42,7 @@ static int _arping_gateway(enum nakd_interface_id intf) {
     nakd_log_execution_point();
 
     status = nakd_shell_exec(NAKD_SCRIPT_PATH,
-          NULL, 5, 8, GW_ARPING_SCRIPT " %s",
+         NULL, 10, 15, GW_ARPING_SCRIPT " %s",
                    nakd_interface_name(intf));
     /* 
      * arping refused to terminate itself after a specified timeout, most
