@@ -181,6 +181,7 @@ static void _rpc_completion(json_object *jresponse, void *priv) {
         json_object_put(jresponse);
     }
     _connection_put(d->c);
+    json_object_put(d->jrequest);
     free(d);
 }
 
