@@ -914,8 +914,12 @@ json_object *cmd_wlan_list(json_object *jcmd, void *arg) {
         goto unlock;
     }
 
+    /*
+     * _wireless_networks is never modified, only swapped while holding
+     * _wlan_mutex - it's thread-safe to do it like this:
+     */
     jresponse = nakd_jsonrpc_response_success(jcmd,
-           nakd_json_deepcopy(_wireless_networks));
+                               _wireless_networks);
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
@@ -929,8 +933,10 @@ json_object *cmd_wlan_list_stored(json_object *jcmd, void *arg) {
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
 
+    /* TODO lock _stored_networks until jresponse is sent and freed */
+
     jresponse = nakd_jsonrpc_response_success(jcmd,
-             nakd_json_deepcopy(_stored_networks));
+                                 _stored_networks);
 
 unlock:
     pthread_mutex_unlock(&_wlan_mutex);
