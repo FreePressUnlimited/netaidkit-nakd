@@ -19,7 +19,7 @@ for env in $(cat /proc/self/environ | tr '\0' '{}'); do
                 sed -i "/^server /d" $DNSMASQ_CONF
 
 				value=$(echo $value | awk -vRS= '{ print $3 }')
-				echo server $value >> $DNSMASQ_CONF
+				echo server=$value >> $DNSMASQ_CONF
 				echo no-resolv >> $DNSMASQ_CONF
 
 				/etc/init.d/dnsmasq restart
