@@ -61,13 +61,20 @@ static const char *_ansi_color[] = {
 void _nakd_log(int priority, const char *format, const char *func,
                                 const char *file, int line, ...) {
     va_list vl;
+
+    va_start(vl, format);
+    _nakd_log_va(priority, format, func, file, line, vl);
+    va_end(vl);
+}
+
+void _nakd_log_va(int priority, const char *format, const char *func,
+                            const char *file, int line, va_list vl) {
     char _fmt[256];
 
     if (priority > loglevel)
         return;
 
     long tid = syscall(SYS_gettid);
-    va_start(vl, format);
     if (use_syslog) {
         snprintf(_fmt, sizeof(_fmt), "(%ld) [%s:%d, %s] %s", tid,
                                       file, line, func, format);
@@ -82,8 +89,6 @@ void _nakd_log(int priority, const char *format, const char *func,
 
     fflush(stdout);
     fflush(stderr);
-
-    va_end(vl);
 }
 
 void _nakd_assert(int stmt, const char *stmt_str, const char *func,

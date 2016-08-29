@@ -3,6 +3,7 @@
 #include <signal.h>
 
 #define NAKD_THREAD_SHUTDOWN_SIGNAL SIGUSR1
+#define NAKD_THREAD_STACK_SIZE 65536
 
 struct nakd_thread;
 typedef void (*nakd_thread_routine)(struct nakd_thread *);

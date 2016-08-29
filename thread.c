@@ -10,7 +10,6 @@
 #include "module.h"
 #include "nak_mutex.h"
 
-#define THREAD_STACK_SIZE 65536
 #define MAX_THREADS 64
 
 static int _unit_initialized;
@@ -110,7 +109,7 @@ static int _thread_create(nakd_thread_routine start,
           nakd_thread_shutdown shutdown, void *priv,
                                 pthread_attr_t attr,
                      struct nakd_thread **uthrptr) {
-    pthread_attr_setstacksize(&attr, THREAD_STACK_SIZE);
+    pthread_attr_setstacksize(&attr, NAKD_THREAD_STACK_SIZE);
 
     nakd_mutex_lock(&_threads_mutex);
     struct nakd_thread *thr = __get_thread_slot();

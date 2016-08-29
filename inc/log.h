@@ -22,6 +22,12 @@ extern const char *loglevel_string[];
 void _nakd_log(int priority, const char *format, const char *func,
                                  const char *file, int line, ...);
 
+#define nakd_log_va(priority, format, vl) \
+    _nakd_log_va((priority), (format), __func__, __FILE__, __LINE__, vl)
+
+void _nakd_log_va(int priority, const char *format, const char *func,
+                             const char *file, int line, va_list vl);
+
 #define nakd_terminate(format, args...) \
     { nakd_log(L_CRIT, (format), ##args); fflush(stdout); fflush(stderr); \
                                                                  exit(1); }
