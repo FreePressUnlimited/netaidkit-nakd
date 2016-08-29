@@ -10,9 +10,6 @@ static struct uci_context *_uci_ctx = NULL;
 
 static int _uci_init(void) {
     pthread_mutex_init(&_uci_mutex, NULL);
-    _uci_ctx = uci_alloc_context();
-    if (_uci_ctx == NULL)
-        nakd_terminate("Couldn't initialize UCI context.");
     return 0;
 }
 
@@ -166,9 +163,13 @@ int nakd_uci_set(struct uci_ptr *ptr) {
 /* UCI isn't thread-safe - keep this lock during UCI operations */
 void nakd_uci_lock(void) {
     nakd_mutex_lock(&_uci_mutex);
+    _uci_ctx = uci_alloc_context();
+    if (_uci_ctx == NULL)
+        nakd_terminate("Couldn't initialize UCI context.");
 }
 
 void nakd_uci_unlock(void) {
+    uci_free_context(_uci_ctx), _uci_ctx = NULL;
     pthread_mutex_unlock(&_uci_mutex);
 }
 
