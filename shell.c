@@ -176,13 +176,15 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
                 nakd_log(L_WARNING, "Timeout: sending SIGKILL to PID %d process group (%s)",
                                                                               pid, argv[0]);
                 kill(-pid, SIGKILL);
+                sleep(1);
             }
             else if (timeout_term && (timestamp > start_timestamp + timeout_term)) {
                 nakd_log(L_WARNING, "Timeout: sending SIGTERM to PID %d process group(%s)",
                                                                              pid, argv[0]);
                 kill(-pid, SIGTERM);
+                sleep(1);
             }
-            sleep(1);
+            usleep((unsigned int)(1e5));
         }
         nakd_log(L_NOTICE, "PID %d (%s) finished execution.", pid, argv[0]);
         log_execve(L_DEBUG, "Finished: %s", argv);
