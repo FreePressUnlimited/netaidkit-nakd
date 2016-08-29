@@ -1,5 +1,6 @@
 #include <string.h>
 #include <strings.h>
+#include <stdarg.h>
 #include <json-c/json.h>
 #include "httpd.h"
 #include "module.h"
