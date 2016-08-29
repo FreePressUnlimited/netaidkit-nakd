@@ -138,15 +138,15 @@ static void _httpd_logger(void *arg, const char *fmt, va_list ap) {
 }
 
 static int _httpd_init(void) {
-    _daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, PORT, NULL, NULL,
-                              &_http_handler, NULL, MHD_USE_SUSPEND_RESUME, 
-                                           MHD_OPTION_CONNECTION_LIMIT, 64,
-                                         MHD_OPTION_CONNECTION_TIMEOUT, 10,
-                      MHD_OPTION_THREAD_STACK_SIZE, NAKD_THREAD_STACK_SIZE,
-                                            MHD_OPTION_THREAD_POOL_SIZE, 2,
-                           MHD_OPTION_EXTERNAL_LOGGER, _httpd_logger, NULL,
-                                                             MHD_USE_DEBUG,
-                                                           MHD_OPTION_END);
+    _daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY |
+                   MHD_USE_SUSPEND_RESUME | MHD_USE_DEBUG,
+                   PORT, NULL, NULL, &_http_handler, NULL, 
+                          MHD_OPTION_CONNECTION_LIMIT, 64,
+                        MHD_OPTION_CONNECTION_TIMEOUT, 10,
+     MHD_OPTION_THREAD_STACK_SIZE, NAKD_THREAD_STACK_SIZE,
+                           MHD_OPTION_THREAD_POOL_SIZE, 2,
+          MHD_OPTION_EXTERNAL_LOGGER, _httpd_logger, NULL,
+                                          MHD_OPTION_END);
     nakd_assert(_daemon != NULL);
     return 0;
 }
