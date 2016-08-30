@@ -89,8 +89,6 @@ int main(int argc, char *argv[]) {
     nakd_log(L_DEBUG, "Running initscripts...");
     nakd_shell_run_scripts("init", 0, 0); 
 
-    /* TODO: CHECK IF CURRENT USER IS ROOT AND IF NAKD USER EXISTS */
-
     nakd_init_modules();
     nakd_sigwait_loop();
     nakd_cleanup_modules();

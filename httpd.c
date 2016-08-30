@@ -135,8 +135,8 @@ static int _http_handler(void *cls,
              * _http_response_reader.
              */
             MHD_suspend_connection(req->connection);
-            nakd_handle_message(req->jrequest, _http_rpc_completion,
-                                            _http_rpc_timeout, req);
+            nakd_handle_message(ACCESS_ALL, req->jrequest, _http_rpc_completion,
+                                                        _http_rpc_timeout, req);
             struct MHD_Response *mhd_response =
                  MHD_create_response_from_callback(MHD_SIZE_UNKNOWN, 4096, 
                           &_http_response_reader, req, &_request_free_cb);

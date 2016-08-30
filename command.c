@@ -69,15 +69,25 @@ static struct work_desc _call_command_desc = {
     .cancel_on_timeout = 0
 };
 
-void nakd_call_command(const char *cmd_name, json_object *jcmd,
-               nakd_response_cb cb, nakd_timeout_cb timeout_cb,
-                                                  void *priv) {
+void nakd_call_command(enum nakd_access_level acl, const char *cmd_name,
+                                 json_object *jcmd, nakd_response_cb cb,
+                               nakd_timeout_cb timeout_cb, void *priv) {
     struct nakd_command *cmd = nakd_get_command(cmd_name);
     if (cmd == NULL) {
         nakd_log(L_NOTICE, "Couldn't find command %s.", cmd_name);
         json_object *jresponse = nakd_jsonrpc_response_error(jcmd,
            INVALID_REQUEST, "Invalid request - no such command: %s.",
                                                            cmd_name);
+        if (cb != NULL)
+            cb(jresponse, priv);
+        return;
+    }
+
+    if ((int)(acl) < (int)(cmd->access)) {
+        nakd_log(L_NOTICE, "Insufficient access level while calling %s "
+                                              "RPC method.", cmd->name);
+        json_object *jresponse = nakd_jsonrpc_response_error(jcmd,
+            INVALID_REQUEST, "Invalid request - insufficient access level.");
         if (cb != NULL)
             cb(jresponse, priv);
         return;
@@ -154,7 +164,7 @@ static struct nakd_command list = {
     .desc = "List available commands.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"list\", \"id\": 42}",
     .handler = cmd_list,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_command
 };
 NAKD_DECLARE_COMMAND(list);

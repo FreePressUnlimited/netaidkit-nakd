@@ -283,7 +283,7 @@ static struct nakd_command connectivity = {
                                                   "anywhere in the world.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"connectivity\", \"id\": 42}",
     .handler = cmd_connectivity,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_connectivity
 };
 NAKD_DECLARE_COMMAND(connectivity);

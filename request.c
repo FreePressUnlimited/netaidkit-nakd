@@ -8,15 +8,15 @@
 #include "workqueue.h"
 #include "nak_mutex.h"
 
-void nakd_handle_message(json_object *jmsg, nakd_response_cb cb,
-                       nakd_timeout_cb timeout_cb, void *priv) {
+void nakd_handle_message(enum nakd_access_level acl, json_object *jmsg,
+         nakd_response_cb cb, nakd_timeout_cb timeout_cb, void *priv) {
     if (nakd_jsonrpc_is_batch(jmsg)) {
-        nakd_handle_batch(jmsg, cb, timeout_cb, priv);
+        nakd_handle_batch(acl, jmsg, cb, timeout_cb, priv);
         return;
     }
     
     if (nakd_jsonrpc_is_request(jmsg) || nakd_jsonrpc_is_notification(jmsg)) {
-        nakd_handle_single(jmsg, cb, timeout_cb, priv);
+        nakd_handle_single(acl, jmsg, cb, timeout_cb, priv);
         return;
     }
 
@@ -27,8 +27,8 @@ void nakd_handle_message(json_object *jmsg, nakd_response_cb cb,
     }
 }
 
-void nakd_handle_single(json_object *jreq, nakd_response_cb cb,
-                      nakd_timeout_cb timeout_cb, void *priv) {
+void nakd_handle_single(enum nakd_access_level acl, json_object *jreq,
+        nakd_response_cb cb, nakd_timeout_cb timeout_cb, void *priv) {
     const char *method_name = nakd_jsonrpc_method(jreq);
     if (method_name == NULL) {
         nakd_log(L_WARNING, "Couldn't get method name from request");
@@ -40,7 +40,7 @@ void nakd_handle_single(json_object *jreq, nakd_response_cb cb,
     }
     
     nakd_log(L_DEBUG, "Handling request, method=\"%s\".", method_name);
-    nakd_call_command(method_name, jreq, cb, timeout_cb, priv);
+    nakd_call_command(acl, method_name, jreq, cb, timeout_cb, priv);
 }
 
 struct batch {
@@ -87,12 +87,12 @@ static void _batch_completion(json_object *jresult, void *priv) {
     }
 }
 
-void nakd_handle_batch(json_object *jmsg, nakd_response_cb cb,
-                     nakd_timeout_cb timeout_cb, void *priv) {
+void nakd_handle_batch(enum nakd_access_level acl, json_object *jmsg,
+       nakd_response_cb cb, nakd_timeout_cb timeout_cb, void *priv) {
     int requests = json_object_array_length(jmsg);
     struct batch *b = _init_batch(requests, cb, priv);
     for (int i = 0; i < json_object_array_length(jmsg); i++) {
         json_object *jsingle = json_object_array_get_idx(jmsg, i);
-        nakd_handle_single(jsingle, _batch_completion, timeout_cb, b);
+        nakd_handle_single(acl, jsingle, _batch_completion, timeout_cb, b);
     }
 }

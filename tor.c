@@ -244,6 +244,7 @@ static void _close_mgmt_socket(struct tor_cs *s) {
     s->fd = 0;
 }
 
+/* update nakd_command ACL */
 static const char *_tor_acl[] = {
     "GETINFO version",
     "GETINFO circuit-status",
@@ -414,7 +415,7 @@ static struct nakd_command tor = {
                "\"Command, as specified in TC v1, subject to ACLs\", "
                                                         "\"id\": 42}",
     .handler = cmd_tor,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_tor
 };
 NAKD_DECLARE_COMMAND(tor);

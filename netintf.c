@@ -390,7 +390,7 @@ static struct nakd_command interfaces = {
     .desc = "Returns current network interface state.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"interfaces\", \"id\": 42}",
     .handler = cmd_interface_state,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_netintf
 };
 NAKD_DECLARE_COMMAND(interfaces);

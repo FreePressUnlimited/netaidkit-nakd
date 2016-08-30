@@ -331,5 +331,5 @@ response:
     return jresponse;
 }
 
-struct nakd_command update = CMD_SHELL_NAKD("update", "do_update.sh");
+struct nakd_command update = CMD_SHELL_NAKD(ACCESS_ADMIN, "update", "do_update.sh");
 NAKD_DECLARE_COMMAND(update);

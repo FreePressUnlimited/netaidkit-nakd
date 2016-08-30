@@ -255,7 +255,9 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
         d->jrequest = jmsg;
 
         _connection_get(c);
-        nakd_handle_message(jmsg, _rpc_completion, _jsonrpc_timeout, d);
+        /* TODO get credentials from unix socket */
+        nakd_handle_message(ACCESS_ADMIN, jmsg, _rpc_completion,
+                                           _jsonrpc_timeout, d);
     } else {
         nakd_log(L_DEBUG, "Couldn't parse JSONRPC message: %s",
                                 json_tokener_error_desc(jerr));

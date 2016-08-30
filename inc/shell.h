@@ -28,30 +28,34 @@ struct cmd_shell_spec {
 json_object *cmd_shell(json_object *jcmd, struct cmd_shell_spec *spec);
 extern struct nakd_module module_shell;
 
-#define CMD_SHELL_ARGV(cname, cwd, path, argv...) \
+#define CMD_SHELL_ARGV(acl, cname, cwd, path, argv...) \
     { .name = cname, \
+      .access = acl, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
       .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ path, argv, NULL }, cwd } \
     }
-#define CMD_SHELL(cname, cwd, path) \
+#define CMD_SHELL(acl, cname, cwd, path) \
     { .name = cname, \
+      .access = acl, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
       .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ path, NULL }, cwd } \
     }
-#define CMD_SHELL_NAKD_ARGV(cname, path, argv...) \
+#define CMD_SHELL_NAKD_ARGV(acl, cname, path, argv...) \
     { .name = cname, \
+      .access = acl, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
       .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \
         { (const char*[]){ NAKD_SCRIPT(path), argv, NULL }, \
                                          NAKD_SCRIPT_PATH } \
     }
-#define CMD_SHELL_NAKD(cname, path) \
+#define CMD_SHELL_NAKD(acl, cname, path) \
     { .name = cname, \
+      .access = acl, \
       .handler = (nakd_cmd_handler)(cmd_shell), \
       .module = &module_shell, \
       .priv = &(struct cmd_shell_spec) \

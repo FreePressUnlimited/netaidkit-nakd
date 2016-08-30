@@ -660,7 +660,7 @@ static struct nakd_command stage_set = {
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_set\", \"params\":"
                                                      "\"vpn\", \"id\": 42}",
     .handler = cmd_stage_set,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_stage
 };
 NAKD_DECLARE_COMMAND(stage_set);
@@ -670,7 +670,7 @@ static struct nakd_command stage_current = {
     .desc = "Returns current stage description.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_current\", \"id\": 42}",
     .handler = cmd_stage_current,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_stage
 };
 NAKD_DECLARE_COMMAND(stage_current);
@@ -680,7 +680,7 @@ static struct nakd_command stage_requested = {
     .desc = "Returns requested stage description.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_requested\", \"id\": 42}",
     .handler = cmd_stage_requested,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_stage
 };
 NAKD_DECLARE_COMMAND(stage_requested);
@@ -690,7 +690,7 @@ static struct nakd_command stage_status = {
     .desc = "Returns information on stage change process.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_current\", \"id\": 42}",
     .handler = cmd_stage_status,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_stage
 };
 NAKD_DECLARE_COMMAND(stage_status);
@@ -700,7 +700,7 @@ static struct nakd_command stage_list = {
     .desc = "Returns an array of available stages.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"stage_list\", \"id\": 42}",
     .handler = cmd_stage_list,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_stage
 };
 NAKD_DECLARE_COMMAND(stage_list);

@@ -470,30 +470,9 @@ response:
     return jresponse;
 }
 
-struct openvpn_command{
-    const char *name;
-    json_object *(*impl)(json_object *);
-} static const _openvpn_commands[] = {
-    { "state", _call_state },
-    { "start", _call_start },
-    { "stop", _call_stop },
-    { "restart", _call_restart }
-};
-
-json_object *cmd_openvpn(json_object *jcmd, void *arg) {
+json_object *cmd_openvpn(json_object *jcmd, void *priv) {
     json_object *jresponse;
     json_object *jparams;
-
-    nakd_log_execution_point();
-
-    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
-        json_object_get_type(jparams) != json_type_string) {
-        nakd_log(L_NOTICE, "Couldn't get arguments for OpenVPN management "
-                                                                "command");
-        jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
-                   "Invalid parameters - params should be a string");
-        goto response;
-    }
 
     const struct stage *current_stage = nakd_stage_current();
     if (current_stage != NULL && strcmp(current_stage->name, "vpn")) {
@@ -505,17 +484,8 @@ json_object *cmd_openvpn(json_object *jcmd, void *arg) {
     if ((jresponse = nakd_command_timedlock(jcmd, &_command_mutex)) != NULL)
         goto response;
 
-    const char *command = json_object_get_string(jparams);
-    for (const struct openvpn_command *cmd = _openvpn_commands;
-         cmd < ARRAY_END(_openvpn_commands); cmd++) {
-        if (!strcasecmp(cmd->name, command)) {
-            jresponse = cmd->impl(jcmd);
-            goto unlock;
-        }
-    }
-
-    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
-      "Invalid parameters - no such OpenVPN management command");
+    json_object *(*impl)(json_object *) = priv;
+    jresponse = impl(jcmd);
 
 unlock:
     pthread_mutex_unlock(&_command_mutex);
@@ -529,13 +499,50 @@ static struct nakd_module module_openvpn = {
 };
 NAKD_DECLARE_MODULE(module_openvpn);
 
-static struct nakd_command openvpn = {
-    .name = "openvpn",
-    .desc = "Manage OpenVPN daemon.",
-    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"openvpn\", \"params\":"
-                                                 "\"state\", \"id\": 42}",
+static struct nakd_command openvpn_state = {
+    .name = "openvpn_state",
+    .desc = "Yields OpenVPN daemon status.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"openvpn_state\","
+                                                     " \"id\": 42}",
     .handler = cmd_openvpn,
-    .access = ACCESS_ROOT,
+    .priv = _call_state,
+    .access = ACCESS_ALL,
     .module = &module_openvpn
 };
-NAKD_DECLARE_COMMAND(openvpn);
+NAKD_DECLARE_COMMAND(openvpn_state);
+
+static struct nakd_command openvpn_start = {
+    .name = "openvpn_start",
+    .desc = "Yields OpenVPN daemon status.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"openvpn_start\","
+                                                     " \"id\": 42}",
+    .handler = cmd_openvpn,
+    .priv = _call_start,
+    .access = ACCESS_ADMIN,
+    .module = &module_openvpn
+};
+NAKD_DECLARE_COMMAND(openvpn_start);
+
+static struct nakd_command openvpn_stop = {
+    .name = "openvpn_stop",
+    .desc = "Yields OpenVPN daemon status.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"openvpn_stop\","
+                                                    " \"id\": 42}",
+    .handler = cmd_openvpn,
+    .priv = _call_stop,
+    .access = ACCESS_ADMIN,
+    .module = &module_openvpn
+};
+NAKD_DECLARE_COMMAND(openvpn_stop);
+
+static struct nakd_command openvpn_restart = {
+    .name = "openvpn_restart",
+    .desc = "Yields OpenVPN daemon status.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"openvpn_restart\","
+                                                       " \"id\": 42}",
+    .handler = cmd_openvpn,
+    .priv = _call_restart,
+    .access = ACCESS_ADMIN,
+    .module = &module_openvpn
+};
+NAKD_DECLARE_COMMAND(openvpn_restart);

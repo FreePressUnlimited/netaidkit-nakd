@@ -1404,7 +1404,7 @@ static struct nakd_command wlan_connect = {
                 "{\"ssid\": \"network SSID\", \"key\": \"network passphrase\","
                                                "\"store\": true}, \"id\": 42}",
     .handler = cmd_wlan_connect,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_connect);
@@ -1414,7 +1414,7 @@ static struct nakd_command wlan_scan = {
     .desc = "Triggers wireless network scan. Does not return results.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_scan\", \"id\": 42}",
     .handler = cmd_wlan_scan,
-    .access = ACCESS_ROOT,
+    .access = ACCESS_USER,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_scan);
@@ -1424,7 +1424,7 @@ static struct nakd_command wlan_list = {
     .desc = "Returns cached wireless network list.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_list\", \"id\": 42}",
     .handler = cmd_wlan_list,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_list);
@@ -1446,7 +1446,7 @@ static struct nakd_command configure_ap = {
          " {\"ssid\": \"AP SSID\", \"key\": \"...\", \"encryption\": \"psk2\","
                        " \"disabled\": false, \"hidden\": false}, \"id\": 42}",
     .handler = cmd_configure_ap,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(configure_ap);
@@ -1457,7 +1457,7 @@ static struct nakd_command wlan_forget = {
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_forget\", \"params\":"
                                           " {\"ssid\": \"...\"}, \"id\": 42}",
     .handler = cmd_wlan_forget,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_forget);
@@ -1468,7 +1468,7 @@ static struct nakd_command wlan_current = {
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_current\", \"params\":"
                                                       " \"WLAN\", \"id\": 42}",
     .handler = cmd_wlan_current,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_current);
@@ -1480,7 +1480,7 @@ static struct nakd_command wlan_modify_stored = {
                    " {\"ssid\": \"...\", \"key\": \"...\", \"hidden\": true, "
                                                "\"auto\": true}, \"id\": 42}",
     .handler = cmd_wlan_modify_stored,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_modify_stored);
@@ -1491,7 +1491,7 @@ static struct nakd_command wlan_autoconnect_set = {
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_autoconnect_set\", "
                                             "\"params\": true, \"id\": 42}",
     .handler = cmd_wlan_autoconnect_set,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_autoconnect_set);
@@ -1514,7 +1514,7 @@ static struct nakd_command wlan_disconnect = {
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_disconnect\","
                                                        " \"id\": 42}",
     .handler = cmd_wlan_disconnect,
-    .access = ACCESS_USER,
+    .access = ACCESS_ADMIN,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_disconnect);
@@ -1526,7 +1526,7 @@ static struct nakd_command wlan_connecting = {
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_connecting\","
                                                        " \"id\": 42}",
     .handler = cmd_wlan_connecting,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_connecting);
