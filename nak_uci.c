@@ -126,19 +126,14 @@ unload:
 int nakd_uci_option_foreach(const char *option_name,
                       nakd_uci_option_foreach_cb cb,
                                     void *cb_priv) {
-    int cb_calls;
     char **uci_packages;
-
     if ((uci_list_configs(_uci_ctx, &uci_packages) != UCI_OK)) {
         nakd_log(L_CRIT, "Couldn't enumerate UCI packages");
-        cb_calls = -1;
-        goto response;
+        return -1;
     }
 
-    cb_calls = nakd_uci_option_foreach_list(option_name, cb, cb_priv,
-                                      (const char **)(uci_packages));
-
-response:
+    int cb_calls = nakd_uci_option_foreach_list(option_name, cb, cb_priv,
+                                         (const char **)(uci_packages));
     free(uci_packages);
     return cb_calls;
 }
