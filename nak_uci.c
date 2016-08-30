@@ -126,28 +126,37 @@ unload:
 int nakd_uci_option_foreach(const char *option_name,
                       nakd_uci_option_foreach_cb cb,
                                     void *cb_priv) {
-    int cb_calls = 0;
-
+    int cb_calls;
     char **uci_packages;
+
     if ((uci_list_configs(_uci_ctx, &uci_packages) != UCI_OK)) {
         nakd_log(L_CRIT, "Couldn't enumerate UCI packages");
         cb_calls = -1;
-        goto unlock;
+        goto response;
     }
 
-    for (char **package = uci_packages; *package != NULL; package++) {
+    cb_calls = nakd_uci_option_foreach_list(option_name, cb, cb_priv,
+                                      (const char **)(uci_packages));
+
+response:
+    free(uci_packages);
+    return cb_calls;
+}
+
+int nakd_uci_option_foreach_list(const char *option_name, 
+            nakd_uci_option_foreach_cb cb, void *cb_priv,
+                             const char **uci_packages) {
+    int cb_calls = 0;
+    for (const char **package = uci_packages; *package != NULL; package++) {
         int pkg_calls = nakd_uci_option_foreach_pkg(*package, option_name,
                                                              cb, cb_priv);
         if (pkg_calls < 0) {
             cb_calls = -1;
-            goto unlock;
+            break;
         }
         cb_calls += pkg_calls;
     }
-
-unlock:
-    free(uci_packages);
-    return cb_calls;
+    return cb_calls;    
 }
 
 int nakd_uci_set(struct uci_ptr *ptr) {

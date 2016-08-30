@@ -324,7 +324,8 @@ static int _stop_openvpn(struct stage *stage) {
 }
 
 static int _run_uci_hooks(struct stage *stage) {
-    if (nakd_call_uci_hooks(stage->hooks, stage->name)) {
+    if (nakd_call_uci_hooks(stage->hooks, stage->name,
+              (const char *[]){ "firewall", NULL })) {
         nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Internal error while rewriting UCI configuration";
         pthread_mutex_unlock(&_stage_status_mutex);

@@ -15,6 +15,9 @@ struct uci_option *nakd_uci_option_single(const char *option_name);
 int nakd_uci_option_foreach(const char *option_name,
                       nakd_uci_option_foreach_cb cb,
                                      void *cb_priv);
+int nakd_uci_option_foreach_list(const char *option_name,
+            nakd_uci_option_foreach_cb cb, void *cb_priv,
+                              const char **uci_packages);
 int nakd_uci_option_foreach_pkg(const char *package, const char *option_name,
                                nakd_uci_option_foreach_cb cb, void *cb_priv);
 int nakd_uci_save(struct uci_package *pkg);

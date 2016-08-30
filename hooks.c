@@ -37,7 +37,8 @@ static int _hook_foreach_cb(struct uci_option *option,
     return 0;
 }
 
-int nakd_call_uci_hooks(struct nakd_uci_hook *hook_list, const char *state) {
+int nakd_call_uci_hooks(struct nakd_uci_hook *hook_list, const char *state,
+                                                const char **config_list) {
     for (struct nakd_uci_hook *hook = hook_list; hook->name != NULL; hook++) {
         struct hook_cb_data cb_data = {
             .state = state,
@@ -45,9 +46,9 @@ int nakd_call_uci_hooks(struct nakd_uci_hook *hook_list, const char *state) {
         };
 
         nakd_uci_lock();
-        int calls = nakd_uci_option_foreach(hook->name,
-            (nakd_uci_option_foreach_cb)(_hook_foreach_cb),
-                                                 &cb_data);
+        int calls = nakd_uci_option_foreach_list(hook->name,
+             (nakd_uci_option_foreach_cb)(_hook_foreach_cb),
+            &cb_data, (const char *[]){ "firewall", NULL });
         nakd_uci_unlock();
         if (calls < 0)
             return 1;

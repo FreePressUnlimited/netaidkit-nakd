@@ -8,6 +8,7 @@ struct nakd_uci_hook {
         struct uci_option *option);
 };
 
-int nakd_call_uci_hooks(struct nakd_uci_hook *hook_list, const char *state);
+int nakd_call_uci_hooks(struct nakd_uci_hook *hook_list, const char *state,
+                                                 const char **config_list);
 
 #endif
