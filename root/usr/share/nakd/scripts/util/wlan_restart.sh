@@ -13,4 +13,9 @@
 #     | wifi and then bring it back up again                            
 
 # /bin/ubus call uci reload_config
+
 wifi
+
+# TODO debug libuci deadlock while using UCI applications
+sleep 2s;
+
