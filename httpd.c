@@ -15,9 +15,16 @@
 
 struct http_request {
     struct MHD_Connection *connection;
+
     json_tokener *jtok;
+    enum json_tokener_error jerr;
     json_object *jrequest;
     size_t request_len;
+
+    json_object *jresponse;
+    /* freed in json_object_put together with jresponse */
+    const char *response_string;
+    size_t response_len;
 };
 
 static struct MHD_Daemon *_daemon;
@@ -25,10 +32,15 @@ static struct MHD_Daemon *_daemon;
 static struct http_request *_init_http_request(struct MHD_Connection *c) {
     struct http_request *req;
     nakd_assert((req = malloc(sizeof(struct http_request))) != NULL);
+
     req->connection = c;
     nakd_assert((req->jtok = json_tokener_new()) != NULL);
     req->jrequest = NULL;
     req->request_len = 0;
+    req->jresponse = NULL;
+    req->response_string = NULL;
+    req->response_len = 0;
+
     return req;
 }
 
@@ -37,23 +49,38 @@ static struct http_request *_free_http_request(struct http_request *c) {
         json_object_put(c->jrequest);
     if (c->jtok != NULL)
         json_tokener_free(c->jtok);
+    if (c->jresponse != NULL)
+        json_object_put(c->jresponse);
     free(c);
+}
+
+static void _request_free_cb(void *priv) {
+    struct http_request *req = priv;
+    _free_http_request(req);
+}
+
+static ssize_t _http_response_reader(void *priv, uint64_t pos, char *buf,
+                                                         size_t max) {
+    struct http_request *req = priv;
+    if (!max)
+        return 0;
+    if (pos >= req->response_len || req->jresponse == NULL)
+        return MHD_CONTENT_READER_END_OF_STREAM;
+
+    ssize_t nb = req->response_len - pos >= max ? max :
+                               req->response_len - pos;
+    strncpy(buf, req->response_string + pos, nb);
+    return nb;
 }
 
 static void _http_rpc_completion(json_object *jresponse, void *priv) {
     struct http_request *c = priv;
 
-    const char *jrstr = json_object_to_json_string_ext(jresponse,
-                                        JSON_C_TO_STRING_PRETTY);
-    nakd_log(L_DEBUG, "Sending response: %s", jrstr);
-    struct MHD_Response *mhd_response = MHD_create_response_from_buffer(
-                 strlen(jrstr), (void *)(jrstr), MHD_RESPMEM_MUST_COPY);
-    json_object_put(jresponse);
-
-    MHD_queue_response(c->connection, MHD_HTTP_OK, mhd_response);
-    MHD_destroy_response(mhd_response);
+    c->jresponse = jresponse;
+    c->response_string = json_object_to_json_string_ext(jresponse,
+                                         JSON_C_TO_STRING_PRETTY);
+    c->response_len = strlen(c->response_string);
     MHD_resume_connection(c->connection);
-    _free_http_request(c);
 }
 
 static void _http_rpc_timeout(void *priv) {
@@ -89,46 +116,57 @@ static int _http_handler(void *cls,
             _free_http_request(req), *ptr = NULL;
             ret = MHD_NO;
         } else {
-            json_object *jreq = json_tokener_parse_ex(req->jtok, post_data,
-                                                          *post_data_size);
-            enum json_tokener_error jerr = json_tokener_get_error(req->jtok);
-
-            if (jerr == json_tokener_continue) {
-                ret = MHD_YES;
-            } else if (jerr == json_tokener_success) {
-                req->jrequest = jreq;
-
-                /* doesn't allocate memory */
-                const char *jreq_string = json_object_to_json_string_ext(jreq,
-                                                     JSON_C_TO_STRING_PRETTY);
-                nakd_log(L_DEBUG, "Got a message: %s", jreq_string);
-
-                MHD_suspend_connection(req->connection), *ptr = NULL;
-                nakd_handle_message(req->jrequest, _http_rpc_completion,
-                                                _http_rpc_timeout, req); 
-                ret = MHD_YES;
-            } else {
-                json_object *jresponse = nakd_jsonrpc_response_error(NULL,
-                                                       PARSE_ERROR, NULL);
-                const char *jrstr = json_object_to_json_string_ext(jresponse,
-                                                    JSON_C_TO_STRING_PRETTY);
-                struct MHD_Response *mhd_response = MHD_create_response_from_buffer(
-                             strlen(jrstr), (void *)(jrstr), MHD_RESPMEM_MUST_COPY);
-                json_object_put(jresponse);
-
-                ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST,
-                                                            mhd_response);
-                MHD_destroy_response(mhd_response);
-                /* 
-                 * reset ptr: we're ready for another request after this call
-                 * completes
-                 */
-                _free_http_request(req), *ptr = NULL;
-            }
+            req->jrequest = json_tokener_parse_ex(req->jtok, post_data,
+                                                      *post_data_size);
+            req->jerr = json_tokener_get_error(req->jtok);
+            *post_data_size = 0;
+            ret = MHD_YES;
         }
+    /* last pass */
     } else {
-        _free_http_request(req), *ptr = NULL;
-        ret = MHD_YES;
+        if (req->jerr == json_tokener_success) {
+            /* doesn't allocate memory */
+            const char *jreq_string = json_object_to_json_string_ext(req->jrequest,
+                                                          JSON_C_TO_STRING_PRETTY);
+            nakd_log(L_DEBUG, "Got a message: %s", jreq_string);
+
+            /* 
+             * Suspend connection to avoid busywaiting on
+             * _http_response_reader.
+             */
+            MHD_suspend_connection(req->connection);
+            nakd_handle_message(req->jrequest, _http_rpc_completion,
+                                            _http_rpc_timeout, req);
+            struct MHD_Response *mhd_response =
+                 MHD_create_response_from_callback(MHD_SIZE_UNKNOWN, 4096, 
+                          &_http_response_reader, req, &_request_free_cb);
+            ret = MHD_queue_response(connection, MHD_HTTP_OK,
+                                               mhd_response);
+            MHD_destroy_response(mhd_response);
+
+            /*
+             * reset ptr: we're ready for another request after this call
+             * completes. Request will be freed in _request_free_cb.
+             */
+            *ptr = NULL;
+        } else {
+            json_object *jresponse = nakd_jsonrpc_response_error(NULL,
+                                                   PARSE_ERROR, NULL);
+            const char *jrstr = json_object_to_json_string_ext(jresponse,
+                                                JSON_C_TO_STRING_PRETTY);
+            struct MHD_Response *mhd_response = MHD_create_response_from_buffer(
+                         strlen(jrstr), (void *)(jrstr), MHD_RESPMEM_MUST_COPY);
+            json_object_put(jresponse);
+
+            ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST,
+                                                        mhd_response);
+            MHD_destroy_response(mhd_response);
+            /* 
+             * reset ptr: we're ready for another request after this call
+             * completes
+             */
+            _free_http_request(req), *ptr = NULL;
+       }
     }
     return ret;
 }
