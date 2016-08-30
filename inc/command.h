@@ -17,6 +17,8 @@ enum nakd_access_level {
     ACCESS_SYSTEM,
 };
 
+extern const char *nakd_access_level_string[];
+
 struct nakd_command {
     const char *name;
     const char *desc;

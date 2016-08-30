@@ -17,6 +17,14 @@
 /* see: command.ld, command.h */
 extern struct nakd_command *__nakd_command_list[];
 
+#define ACCESS_LEVEL_STRING_ENTRY(level) [level] = #level
+const char *nakd_access_level_string[] = {
+    ACCESS_LEVEL_STRING_ENTRY(ACCESS_ALL),
+    ACCESS_LEVEL_STRING_ENTRY(ACCESS_USER),
+    ACCESS_LEVEL_STRING_ENTRY(ACCESS_ADMIN),
+    ACCESS_LEVEL_STRING_ENTRY(ACCESS_SYSTEM)
+};
+
 struct nakd_command *nakd_get_command(const char *cmd_name) {
     for (struct nakd_command **command = __nakd_command_list; *command;
                                                            command++) {
@@ -123,6 +131,11 @@ static json_object *_desc_command(struct nakd_command *cmd) {
         json_object *jusage = json_object_new_string(cmd->usage);
         json_object_object_add(jresult, "usage", jusage);
     }
+
+    json_object *jaccess = json_object_new_string(nakd_access_level_string[
+                                                      (int)(cmd->access)]);
+    json_object_object_add(jresult, "access", jaccess);
+
     return jresult;
 }
 
