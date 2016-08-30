@@ -9,7 +9,7 @@ void _nakd_mutex_lock(pthread_mutex_t *lock, const char *lock_name,
                                       const char *file, int line) {
     int timeout_sec = NAKD_MUTEX_TIMEOUT;
 
-    for (;;) {
+    for (int try = 0;; ++try) {
         struct timespec timeout;
         clock_gettime(CLOCK_REALTIME, &timeout);
         timeout.tv_sec += timeout_sec;
@@ -18,6 +18,8 @@ void _nakd_mutex_lock(pthread_mutex_t *lock, const char *lock_name,
             nakd_log(L_CRIT, "mutex timeout: %s [%s:%d]", lock_name, file,
                                                                     line);
             timeout_sec = 1;
+            if (try > 3)
+                nakd_terminate("Deadlock. Terminating...");
         } else if (lock_status) {
             nakd_log(L_CRIT, "error while locking mutex: %s",
                                       strerror(lock_status));
