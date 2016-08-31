@@ -23,6 +23,8 @@ int nakd_net_hidden(json_object *jnetwork);
 const char *nakd_wlan_interface_name(void);
 const char *nakd_ap_interface_name(void);
 
+void nakd_wlan_reset_stored(void);
+
 json_object *cmd_wlan_list_stored(json_object *jcmd, void *arg);
 json_object *cmd_wlan_list(json_object *jcmd, void *arg);
 json_object *cmd_wlan_scan(json_object *jcmd, void *arg);

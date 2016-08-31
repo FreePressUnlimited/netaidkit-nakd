@@ -17,6 +17,7 @@
 #include "workqueue.h"
 #include "config.h"
 #include "nak_mutex.h"
+#include "wlan.h"
 
 #define NAKD_STAGE_SCRIPT_PATH NAKD_SCRIPT_PATH "stage/"
 #define NAKD_STAGE_SCRIPT_DIR_FMT (NAKD_STAGE_SCRIPT_PATH "%s")
@@ -57,6 +58,7 @@ static int _run_stage_scripts(struct stage *stage);
 static int _start_openvpn(struct stage *stage);
 static int _stop_openvpn(struct stage *stage);
 static int _run_uci_hooks(struct stage *stage);
+static int _reset_wlan(struct stage *stage);
 
 static struct stage _stage_reset = {
     .name = "reset",
@@ -66,6 +68,11 @@ static struct stage _stage_reset = {
             .name = "Stopping OpenVPN",
             .desc = "",
             .work = _stop_openvpn
+       },
+       { 
+            .name = "Resetting WLAN",
+            .desc = "",
+            .work = _reset_wlan
        },
        { 
             .name = "Calling UCI hooks",
@@ -331,6 +338,12 @@ static int _run_uci_hooks(struct stage *stage) {
         pthread_mutex_unlock(&_stage_status_mutex);
         return 1;
     }
+    return 0;
+}
+
+static int _reset_wlan(struct stage *stage) {
+    nakd_wlan_reset_stored();
+    nakd_wlan_disconnect();
     return 0;
 }
 
@@ -649,7 +662,7 @@ json_object *cmd_stage_list(json_object *jcmd, void *param) {
 static struct nakd_module module_stage = {
     .name = "stage",
     .deps = (const char *[]){ "workqueue", "connectivity", "notification",
-                       "timer", "config", "uci", "led", "command", NULL },
+               "timer", "config", "uci", "led", "command", "wlan", NULL },
     .init = _stage_init,
     .cleanup = _stage_cleanup
 };

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <time.h>
 #include <pthread.h>
 #include <string.h>
@@ -183,6 +184,14 @@ static void __remove_stored_network(const char *ssid) {
 
     if (__save_stored_networks())
         nakd_log(L_CRIT, "Couldn't remove stored network credentials: %s", ssid);
+}
+
+void nakd_wlan_reset_stored(void) {
+    nakd_mutex_lock(&_wlan_mutex);
+    if (_stored_networks != NULL)
+        json_object_put(_stored_networks), _stored_networks = NULL;
+    unlink(WLAN_NETWORK_LIST_PATH);
+    pthread_mutex_unlock(&_wlan_mutex);
 }
 
 static json_object *__find_network(const char *ssid) {
