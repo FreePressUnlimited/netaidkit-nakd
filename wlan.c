@@ -898,7 +898,7 @@ static int _wlan_init(void) {
      * This may be an OpenWRT or hardware issue.
      */
     nakd_wlan_disconnect();
-
+    nakd_wlan_scan();
     return 0;
 }
 
