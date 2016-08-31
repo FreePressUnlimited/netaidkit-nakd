@@ -105,7 +105,7 @@ static void __init_stored_networks(void) {
 }
 
 static void __cleanup_stored_networks(void) {
-    json_object_put(_stored_networks);
+    json_object_put(_stored_networks), _stored_networks = NULL;
 }
 
 static int __save_stored_networks(void) {
@@ -188,9 +188,11 @@ static void __remove_stored_network(const char *ssid) {
 
 void nakd_wlan_reset_stored(void) {
     nakd_mutex_lock(&_wlan_mutex);
-    if (_stored_networks != NULL)
-        json_object_put(_stored_networks), _stored_networks = NULL;
     unlink(WLAN_NETWORK_LIST_PATH);
+    if (_stored_networks != NULL) {
+        __cleanup_stored_networks();
+        __init_stored_networks();    
+    }
     pthread_mutex_unlock(&_wlan_mutex);
 }
 
