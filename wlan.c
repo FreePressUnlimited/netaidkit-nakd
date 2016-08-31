@@ -960,6 +960,8 @@ json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
 
+    int last_scan = _last_scan;
+
     if (__wlan_scan()) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
            "Internal error - couldn't update wireless network list");
@@ -971,7 +973,7 @@ json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
     json_object *jresult = json_object_new_object();
     json_object *jnetcount = json_object_new_int(netcount);
     json_object *jlastscan = json_object_new_int(monotonic_time()
-                                                   - _last_scan);
+                                                    - last_scan);
     json_object_object_add(jresult, "netcount", jnetcount);
     json_object_object_add(jresult, "last_scan", jlastscan);
 
