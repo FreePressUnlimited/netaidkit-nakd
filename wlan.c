@@ -883,7 +883,7 @@ static int _wlan_cleanup(void) {
 }
 
 json_object *cmd_wlan_list(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
@@ -910,7 +910,7 @@ response:
 }
 
 json_object *cmd_wlan_list_stored(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
@@ -927,7 +927,7 @@ response:
 }
 
 json_object *cmd_wlan_scan(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
@@ -958,7 +958,7 @@ response:
 }
 
 json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
     json_object *jparams;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
@@ -1033,7 +1033,7 @@ response:
 
 json_object *cmd_configure_ap(json_object *jcmd, void *arg) {
     json_object *jparams;
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
@@ -1074,7 +1074,7 @@ response:
 
 json_object *cmd_wlan_forget(json_object *jcmd, void *arg) {
     json_object *jparams;
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
@@ -1150,7 +1150,7 @@ static int _get_current_wlan_config(struct uci_option *option, void *priv) {
 }
 
 json_object *cmd_wlan_current(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
     json_object *jparams;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_config_mutex)) != NULL)
@@ -1204,7 +1204,7 @@ static void _update_stored_config(json_object *jstored, json_object *jnew,
 }
 
 json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
     json_object *jparams;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
@@ -1260,7 +1260,7 @@ response:
 }
 
 json_object *cmd_wlan_autoconnect_set(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
     json_object *jparams;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
@@ -1292,7 +1292,7 @@ response:
 }
 
 json_object *cmd_wlan_autoconnect_get(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;
@@ -1338,7 +1338,7 @@ static void _wlan_disconnect_async(void) {
 }
 
 json_object *cmd_wlan_disconnect(json_object *jcmd, void *arg) {
-    json_object *jresponse;
+    json_object *jresponse = NULL;
 
     if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
         goto response;

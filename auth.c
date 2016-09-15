@@ -10,6 +10,7 @@
 #include "nak_mutex.h"
 #include "command.h"
 #include "log.h"
+#include "jsonrpc.h"
 
 #define AUTH_PATH "/etc/nakd/pass"
 #define RAND_SOURCE "/dev/random"
@@ -197,3 +198,98 @@ static struct nakd_module module_auth = {
     .cleanup = _auth_cleanup 
 };
 NAKD_DECLARE_MODULE(module_auth);
+
+json_object *cmd_auth_set(json_object *jcmd, void *arg) {
+    json_object *jresponse = NULL;
+    json_object *jparams;
+
+    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL)
+        goto params;
+
+    json_object *juser = NULL;
+    json_object_object_get_ex(jparams, "user", &juser);
+    json_object *jpass = NULL;
+    json_object_object_get_ex(jparams, "pass", &juser);
+    json_object *jacl = NULL;
+    json_object_object_get_ex(jparams, "acl", &juser);
+    if (juser == NULL || jpass == NULL || jacl == NULL)
+        goto params;
+
+    if (json_object_get_type(juser) != json_type_string ||
+        json_object_get_type(jpass) != json_type_string ||
+        json_object_get_type(jacl) != json_type_string) {
+        goto params;
+    }
+
+    const char *user = json_object_get_string(juser);
+    const char *pass = json_object_get_string(jpass);
+    enum nakd_access_level acl = nakd_acl_from_string(
+                        json_object_get_string(jacl));
+
+    if (nakd_auth_set(user, pass, acl)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                "Internal error - couldn't write the password file");
+    } else {
+        json_object *jresult = json_object_new_string("OK");
+        jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    }
+    goto response;
+
+params:
+    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+        "Invalid request - params object should contain 'user', 'pass' and "
+                                                   "'acl' string objects.");
+response:
+    return jresponse;
+}
+
+static struct nakd_command auth_set = {
+    .name = "auth_set",
+    .desc = "Sets/Resets user accounts.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"auth_set\","
+          "\"params\": {\"user\": \"...\", \"pass\": \"...\", "
+       "\"acl\": \"ACCESS_ADMIN or ACCESS_USER\", \"id\": 42}",
+    .handler = cmd_auth_set,
+    .access = ACCESS_ADMIN,
+    .module = &module_auth
+};
+NAKD_DECLARE_COMMAND(auth_set);
+
+json_object *cmd_auth_remove(json_object *jcmd, void *arg) {
+    json_object *jresponse = NULL;
+    json_object *jparams;
+
+    if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL)
+        goto params;
+
+    if (json_object_get_type(jparams) != json_type_string)
+        goto params;
+
+    const char *username = json_object_get_string(jparams);
+
+    if (nakd_auth_remove(username)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
+                "Internal error - couldn't write the password file");
+    } else {
+        json_object *jresult = json_object_new_string("OK");
+        jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
+    }
+    goto response;
+
+params:
+    jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+          "Invalid request - params object should be a username");
+response:
+    return jresponse;
+}
+
+static struct nakd_command auth_remove = {
+    .name = "auth_remove",
+    .desc = "Removes user accounts.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"auth_remove\","
+                          "\"params\": \"username\", \"id\": 42}",
+    .handler = cmd_auth_remove,
+    .access = ACCESS_ADMIN,
+    .module = &module_auth
+};
+NAKD_DECLARE_COMMAND(auth_remove);
