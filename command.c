@@ -22,8 +22,17 @@ const char *nakd_access_level_string[] = {
     ACCESS_LEVEL_STRING_ENTRY(ACCESS_ALL),
     ACCESS_LEVEL_STRING_ENTRY(ACCESS_USER),
     ACCESS_LEVEL_STRING_ENTRY(ACCESS_ADMIN),
-    ACCESS_LEVEL_STRING_ENTRY(ACCESS_SYSTEM)
+    ACCESS_LEVEL_STRING_ENTRY(ACCESS_SYSTEM),
+    NULL
 };
+
+enum nakd_access_level nakd_acl_from_string(const char *str) {
+    for (const char **acl = nakd_access_level_string; *acl != NULL; ++acl) {
+        if (!strcmp(*acl, str))
+            return (enum nakd_access_level)(acl - nakd_access_level_string);
+    }
+    return ACCESS_ALL;
+}
 
 struct nakd_command *nakd_get_command(const char *cmd_name) {
     for (struct nakd_command **command = __nakd_command_list; *command;

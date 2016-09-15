@@ -71,33 +71,10 @@ const char *nakd_ap_interface_name(void) {
     return _ap_interface_name;
 }
 
-static int __read_stored_networks(void) {
-    int result = 0;
-
-    FILE *fp = fopen(WLAN_NETWORK_LIST_PATH, "r");
-    if (fp == NULL)
-        return 1;
-
-    /* TODO write nakd_json_parse_file, parse 4096b chunks. */
-    const size_t networks_buffer_size = 262144;
-    char *networks_buffer = malloc(networks_buffer_size);
-    size_t size = fread(networks_buffer, 1, networks_buffer_size - 1, fp);
-    networks_buffer[size] = 0;
-
-    json_tokener *jtok = json_tokener_new();
-    _stored_networks = json_tokener_parse_ex(jtok, networks_buffer, size);
-    if (json_tokener_get_error(jtok) != json_tokener_success)
-        result = 1;
-
-    fclose(fp);
-    json_tokener_free(jtok);
-    free(networks_buffer);
-    return result;
-}
-
 static void __init_stored_networks(void) {
-    if (__read_stored_networks()) {
-            _stored_networks = json_object_new_array();
+    if ((_stored_networks = nakd_json_parse_file(WLAN_NETWORK_LIST_PATH))
+                                                               == NULL) {
+        _stored_networks = json_object_new_array();
     }
 
     nakd_log(L_INFO, "Read %d known networks.",
@@ -109,14 +86,7 @@ static void __cleanup_stored_networks(void) {
 }
 
 static int __save_stored_networks(void) {
-    FILE *fp = fopen(WLAN_NETWORK_LIST_PATH, "w");
-    if (fp == NULL)
-        return 1;
-
-    const char *networks = json_object_get_string(_stored_networks); 
-    fwrite(networks, strlen(networks), 1, fp);
-    fclose(fp);
-    return 0;
+    return nakd_json_write_file(WLAN_NETWORK_LIST_PATH, _stored_networks);
 }
 
 const char *nakd_net_key(json_object *jnetwork) {
