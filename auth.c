@@ -209,9 +209,9 @@ json_object *cmd_auth_set(json_object *jcmd, void *arg) {
     json_object *juser = NULL;
     json_object_object_get_ex(jparams, "user", &juser);
     json_object *jpass = NULL;
-    json_object_object_get_ex(jparams, "pass", &juser);
+    json_object_object_get_ex(jparams, "pass", &jpass);
     json_object *jacl = NULL;
-    json_object_object_get_ex(jparams, "acl", &juser);
+    json_object_object_get_ex(jparams, "acl", &jacl);
     if (juser == NULL || jpass == NULL || jacl == NULL)
         goto params;
 
