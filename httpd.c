@@ -178,7 +178,7 @@ static int _http_set_session_cookie(struct MHD_Connection *connection,
 static int _http_queue_response(const char *text, int code,
                        struct MHD_Connection *connection) {
     struct MHD_Response *mhd_response = MHD_create_response_from_buffer(
-                  strlen(text), (void *)(text), MHD_RESPMEM_PERSISTENT);
+                   strlen(text), (void *)(text), MHD_RESPMEM_MUST_COPY);
     int ret = MHD_queue_response(connection, code, mhd_response);
     MHD_destroy_response(mhd_response);
     return ret;
