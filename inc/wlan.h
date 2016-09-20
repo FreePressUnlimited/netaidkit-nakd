@@ -2,6 +2,9 @@
 #define NAKD_WLAN_H
 #include <json-c/json.h>
 
+int nakd_wlan_store_network(const char *ssid, const char *key,
+                                             int autoconnect);
+
 json_object *nakd_wlan_candidate(void);
 int nakd_wlan_netcount(void);
 int nakd_wlan_scan(void);
@@ -13,6 +16,7 @@ int nakd_wlan_disconnect(void);
 json_object *nakd_wlan_current(void);
 int nakd_wlan_in_range(const char *ssid);
 int nakd_wlan_connection_uptime(void);
+int nakd_wlan_network_count(void);
 
 const char *nakd_net_key(json_object *jnetwork);
 const char *nakd_net_ssid(json_object *jnetwork);

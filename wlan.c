@@ -225,6 +225,14 @@ static int __store_network(const char *ssid, const char *key,
     return 0;
 }
 
+int nakd_wlan_store_network(const char *ssid, const char *key,
+                                            int autoconnect) {
+    nakd_mutex_lock(&_wlan_mutex);
+    int status = __store_network(ssid, key, autoconnect);
+    pthread_mutex_unlock(&_wlan_mutex);
+    return status;
+}
+
 static int __forget_network(json_object *jnetwork) {
     const char *ssid = nakd_net_ssid(jnetwork);
     if (__get_stored_network(ssid) != NULL)
@@ -800,6 +808,10 @@ int nakd_wlan_connect(json_object *jnetwork) {
     _connecting = 0;
     json_object_put(_requested_wlan), _requested_wlan = NULL;
     pthread_mutex_unlock(&_wlan_status_mutex);
+
+    if (!status)
+        nakd_event_push(CONNECTIVITY_OK);
+
     return status;
 }
 
@@ -841,6 +853,23 @@ int nakd_wlan_disconnect(void) {
     int status = __wlan_disconnect();
     pthread_mutex_unlock(&_wlan_mutex);
     return status;
+}
+
+int nakd_wlan_network_count(void) {
+    int result;
+    nakd_mutex_lock(&_wlan_mutex);
+
+    if (_wireless_networks == NULL) {
+        result = -1;
+        goto unlock;
+    }
+
+    nakd_assert(json_object_get_type(_wireless_networks) == json_type_array);
+    result = json_object_array_length(_wireless_networks);
+
+unlock:
+    pthread_mutex_unlock(&_wlan_mutex);
+    return result;
 }
 
 static int _wlan_init(void) {
@@ -957,12 +986,49 @@ response:
     return jresponse;
 }
 
+struct wlan_connect_priv {
+    json_object *jparams;
+};
+
+static void _wlan_connect_async_work(void *priv) {
+    struct wlan_connect_priv *cpriv = priv;
+
+    /* 
+     * Leave some time to send response before changing configuration.
+     * Changing client interface configuration can affect AP on some
+     * platforms.
+     */
+    sleep(1);
+
+    if (nakd_wlan_connect(cpriv->jparams)) {
+        nakd_log(L_CRIT, "Couldn't update WLAN configuration (async "
+                                                         "connect)");
+    } else {
+        json_object *jstore = NULL;
+        json_object_object_get_ex(cpriv->jparams, "store", &jstore);
+        if (jstore != NULL) {
+           if (json_object_get_boolean(jstore)) {
+                const char *ssid = nakd_net_ssid(cpriv->jparams);
+                const char *key = nakd_net_key(cpriv->jparams);
+                int autoconnect = nakd_json_get_bool(cpriv->jparams, "auto");
+                autoconnect = autoconnect == -1 ? 0 : autoconnect;
+
+                if (nakd_wlan_store_network(ssid, key, autoconnect))
+                    nakd_log(L_CRIT, "Couldn't store network credentials.");
+           }
+        }
+    }
+    json_object_put(cpriv->jparams);
+}
+
+static struct work_desc _connect_desc = {
+    .impl = _wlan_connect_async_work,
+    .name = "wlan connect"
+};
+
 json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
     json_object *jresponse = NULL;
     json_object *jparams;
-
-    if ((jresponse = nakd_command_timedlock(jcmd, &_wlan_mutex)) != NULL)
-        goto response;
 
     if ((jparams = nakd_jsonrpc_params(jcmd)) == NULL ||
         json_object_get_type(jparams) != json_type_object) {
@@ -983,39 +1049,22 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
        }
     }
 
-    if (_wireless_networks == NULL) {
+    if (nakd_wlan_network_count() == -1) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
                            "Internal error - no cached scan results,"
                                            " call wlan_scan first.");
         goto unlock;
     }
 
-    const char *ssid = nakd_net_ssid(jparams);
-    const char *key = nakd_net_key(jparams);
-    if (ssid == NULL)
-        goto params;
-
-    if (_wlan_connect(jparams)) {
-        jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                 "Internal error - couldn't connect to the network");
+    if (nakd_work_pending(nakd_wq, _connect_desc.name)) {
+        jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
+                              "Invalid request - already connecting");
         goto unlock;
     }
 
-    nakd_event_push(CONNECTIVITY_OK);
-
-    if (jstore != NULL) {
-       if (json_object_get_boolean(jstore)) {
-            int autoconnect = nakd_json_get_bool(jparams, "auto");
-            autoconnect = autoconnect == -1 ? 0 : autoconnect;
-
-            if (__store_network(ssid, key, autoconnect)) {
-                jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                      "Internal error - couldn't store network credentials. "
-                                                               "Connected.");
-                goto unlock;
-            }
-       }
-    }
+    struct work *connect_wq_entry = nakd_alloc_work(&_connect_desc);
+    json_object_get(jparams), connect_wq_entry->desc.priv = jparams;
+    nakd_workqueue_add(nakd_wq, connect_wq_entry);
 
     json_object *jresult = json_object_new_string("QUEUED");
     jresponse = nakd_jsonrpc_response_success(jcmd, jresult);
@@ -1026,7 +1075,6 @@ params:
                 "Invalid parameters - params should be an object"
                            " with \"ssid\" and \"key\" members");
 unlock:
-    pthread_mutex_unlock(&_wlan_mutex);
 response:
     return jresponse;
 }
