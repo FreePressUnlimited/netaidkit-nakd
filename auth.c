@@ -134,6 +134,7 @@ static void __auth_remove(const char *user) {
         if (!strcmp(user, entry_user))
             continue;
 
+        json_object_get(jentry);
         json_object_array_add(jupdated, jentry);
     }
 
