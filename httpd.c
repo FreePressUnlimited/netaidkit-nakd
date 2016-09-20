@@ -301,7 +301,7 @@ struct http_handler {
     MHD_AccessHandlerCallback cb;
 } static _http_handlers[] = {
     { "/nak-rpc", _http_rpc_handler },
-    { "/authenticate", _http_auth_handler },
+    { "/nak-auth", _http_auth_handler },
     { NULL, NULL }
 };
 
