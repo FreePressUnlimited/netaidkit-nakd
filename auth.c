@@ -29,8 +29,8 @@ static int _auth_get_random(char *out, size_t n) {
 }
 
 static char *__auth_gen_crypt(const char *pass) {
-    /* SHA512 */
-    char salt[] = "$6$........";
+    /* SHA512 isn't available in uClibc by default, using MD5 for now */
+    char salt[] = "$1$........";
     const char seedchars[] =
       "./0123456789ABCDEFGHIJKLMNOPQRST"
       "UVWXYZabcdefghijklmnopqrstuvwxyz";
