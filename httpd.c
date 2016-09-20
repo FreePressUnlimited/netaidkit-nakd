@@ -168,17 +168,31 @@ static int _http_create_session(const char *sessid,
 }
 
 static int _http_set_session_cookie(struct MHD_Connection *connection,
-                                                 const char* sessid) {
+                  struct MHD_Response *response, const char* sessid) {
     char cookie[512];
     snprintf(cookie , sizeof cookie, "%s=%s", NAK_SESSION_COOKIE, sessid);
-    return MHD_YES == MHD_set_connection_value(connection, MHD_HEADER_KIND,
-                                       MHD_HTTP_HEADER_SET_COOKIE, cookie);
+    if (MHD_NO == MHD_set_connection_value(connection, MHD_HEADER_KIND,
+                                 MHD_HTTP_HEADER_SET_COOKIE, cookie)) {
+        return 1;
+    }
+
+    if (response == NULL)
+        return 0;
+    if (MHD_NO == MHD_add_response_header(response,
+             MHD_HTTP_HEADER_SET_COOKIE, cookie)) {
+        return 1;
+    }
+    return 0;
 }
 
-static int _http_queue_response(const char *text, int code,
-                       struct MHD_Connection *connection) {
+static int _http_queue_response(const char *text, const char *sessid, int code,
+                                           struct MHD_Connection *connection) {
     struct MHD_Response *mhd_response = MHD_create_response_from_buffer(
                    strlen(text), (void *)(text), MHD_RESPMEM_MUST_COPY);
+
+    if (sessid != NULL)
+        _http_set_session_cookie(connection, mhd_response, sessid);
+
     int ret = MHD_queue_response(connection, code, mhd_response);
     MHD_destroy_response(mhd_response);
     return ret;
@@ -278,7 +292,7 @@ static int _http_auth_handler(void *cls,
     const char* pass = MHD_lookup_connection_value(connection,
                                MHD_GET_ARGUMENT_KIND, "pass");
     if (user == NULL || pass == NULL)
-        return _http_queue_response("Bad request.", 400, connection);
+        return _http_queue_response("Bad request.", NULL, 400, connection);
 
     if (!nakd_authenticate(user, pass)) {
         char sessid[64];
@@ -286,10 +300,11 @@ static int _http_auth_handler(void *cls,
 
         enum nakd_access_level acl = nakd_get_user_acl(user);
         _http_create_session(sessid, acl);
-        _http_set_session_cookie(connection, sessid);
-        return _http_queue_response(sessid, MHD_HTTP_OK, connection);
+        return _http_queue_response(sessid, sessid, MHD_HTTP_OK, connection);
     }
-    return _http_queue_response("Login incorrect.", MHD_HTTP_OK, connection);
+
+    /* reply with HTTP 401 Unauthorised */
+    return _http_queue_response("Login incorrect.", NULL, 401, connection);
 }
 
 struct http_handler {
@@ -314,7 +329,7 @@ static int _http_handler(void *cls,
                                                         post_data_size, ptr);
         }
     }
-    return _http_queue_response("No such object.", 404, connection);
+    return _http_queue_response("No such object.", NULL, 404, connection);
 }
 
 static void _httpd_logger(void *arg, const char *fmt, va_list ap) {
