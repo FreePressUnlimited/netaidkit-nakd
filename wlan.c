@@ -791,23 +791,31 @@ static int _configure_ap(json_object *jnetwork) {
     nakd_workqueue_add(nakd_wq, configure_wq_entry);
 }
 
-int nakd_wlan_connect(json_object *jnetwork) {
-    if (nakd_wlan_connecting())
-        return 0;
-
+static void _set_requested_wlan(json_object *jnetwork) {
     nakd_mutex_lock(&_wlan_status_mutex);
     _connecting = 1;
     _requested_wlan = jnetwork, json_object_get(_requested_wlan);
     pthread_mutex_unlock(&_wlan_status_mutex);
+}
+
+static void _reset_requested_wlan(void) {
+    nakd_mutex_lock(&_wlan_status_mutex);
+    _connecting = 0;
+    json_object_put(_requested_wlan), _requested_wlan = NULL;
+    pthread_mutex_unlock(&_wlan_status_mutex);
+}
+
+int nakd_wlan_connect(json_object *jnetwork) {
+    if (nakd_wlan_connecting())
+        return 0;
+
+    _set_requested_wlan(jnetwork);
 
     nakd_mutex_lock(&_wlan_mutex);
     int status = _wlan_connect(jnetwork);
     pthread_mutex_unlock(&_wlan_mutex);
 
-    nakd_mutex_lock(&_wlan_status_mutex);
-    _connecting = 0;
-    json_object_put(_requested_wlan), _requested_wlan = NULL;
-    pthread_mutex_unlock(&_wlan_status_mutex);
+    _reset_requested_wlan();
 
     if (!status)
         nakd_event_push(CONNECTIVITY_OK);
@@ -1061,6 +1069,9 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
                               "Invalid request - already connecting");
         goto unlock;
     }
+
+    /* Set the requested WLAN a priori for cmd_wlan_connecting purposes */
+    _set_requested_wlan(jparams);
 
     struct work *connect_wq_entry = nakd_alloc_work(&_connect_desc);
     json_object_get(jparams), connect_wq_entry->desc.priv = jparams;
