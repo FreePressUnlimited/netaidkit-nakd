@@ -291,7 +291,9 @@ static int _http_auth_handler(void *cls,
         enum nakd_access_level acl = nakd_get_user_acl(user);
         _http_create_session(sessid, acl);
         _http_set_session_cookie(connection, sessid);
-    }   
+        return _http_queue_response(sessid, MHD_HTTP_OK, connection);
+    }
+    return _http_queue_response("Login incorrect.", MHD_HTTP_OK, connection);
 }
 
 struct http_handler {
