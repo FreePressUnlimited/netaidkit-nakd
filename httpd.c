@@ -224,10 +224,6 @@ static int _http_rpc_handler(void *cls,
                                                           JSON_C_TO_STRING_PRETTY);
             nakd_log(L_DEBUG, "Got a message: %s (URL: %s)", jreq_string, url);
 
-            /* Get credentials from session cookie */
-            const char *session_cookie = MHD_lookup_connection_value(
-                     req->connection, MHD_COOKIE_KIND, NAK_SESSION_COOKIE);
-
             /* 
              * Suspend connection to avoid busywaiting on
              * _http_response_reader.
