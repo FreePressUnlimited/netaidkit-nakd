@@ -994,12 +994,8 @@ response:
     return jresponse;
 }
 
-struct wlan_connect_priv {
-    json_object *jparams;
-};
-
 static void _wlan_connect_async_work(void *priv) {
-    struct wlan_connect_priv *cpriv = priv;
+    json_object *jparams = priv;
 
     /* 
      * Leave some time to send response before changing configuration.
@@ -1008,17 +1004,17 @@ static void _wlan_connect_async_work(void *priv) {
      */
     sleep(1);
 
-    if (nakd_wlan_connect(cpriv->jparams)) {
+    if (nakd_wlan_connect(jparams)) {
         nakd_log(L_CRIT, "Couldn't update WLAN configuration (async "
                                                          "connect)");
     } else {
         json_object *jstore = NULL;
-        json_object_object_get_ex(cpriv->jparams, "store", &jstore);
+        json_object_object_get_ex(jparams, "store", &jstore);
         if (jstore != NULL) {
            if (json_object_get_boolean(jstore)) {
-                const char *ssid = nakd_net_ssid(cpriv->jparams);
-                const char *key = nakd_net_key(cpriv->jparams);
-                int autoconnect = nakd_json_get_bool(cpriv->jparams, "auto");
+                const char *ssid = nakd_net_ssid(jparams);
+                const char *key = nakd_net_key(jparams);
+                int autoconnect = nakd_json_get_bool(jparams, "auto");
                 autoconnect = autoconnect == -1 ? 0 : autoconnect;
 
                 if (nakd_wlan_store_network(ssid, key, autoconnect))
@@ -1026,7 +1022,7 @@ static void _wlan_connect_async_work(void *priv) {
            }
         }
     }
-    json_object_put(cpriv->jparams);
+    json_object_put(jparams);
 }
 
 static struct work_desc _connect_desc = {
