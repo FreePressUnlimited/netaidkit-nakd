@@ -11,6 +11,7 @@
 #include "command.h"
 #include "log.h"
 #include "jsonrpc.h"
+#include "session.h"
 
 #define AUTH_PATH "/etc/nakd/pass"
 #define RAND_SOURCE "/dev/random"
@@ -66,6 +67,13 @@ static json_object *__auth_find_entry(const char *user) {
             return jentry;
     }
     return NULL;
+}
+
+int nakd_user_exists(const char *user) {
+    nakd_mutex_lock(&_auth_mutex);
+    int ret = __auth_find_entry(user) != NULL;
+    nakd_mutex_unlock(&_auth_mutex);
+    return ret;
 }
 
 enum nakd_access_level __auth_get_user_acl(const char *user) {

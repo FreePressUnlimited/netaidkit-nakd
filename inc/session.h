@@ -6,10 +6,13 @@
 #define NAK_SESSION_COOKIE "nak_sessid" 
 
 json_object *nakd_session_get_data(const char *sessid);
+json_object *nakd_session_get_user(const char *sessid);
+int nakd_session_exists(const char *sessid);
 int nakd_session_store_data(const char *sessid, json_object *jsessdata);
 void nakd_gen_sessid(char *sessid);
-int nakd_session_create(const char *sessid,
-               enum nakd_access_level acl);
+int nakd_session_create(const char *sessid, const char *username,
+                                     enum nakd_access_level acl);
+void nakd_session_destroy(const char *sessid);
 enum nakd_access_level nakd_session_acl(const char *sessid);
 
 #endif

@@ -16,6 +16,7 @@
 #include "json.h"
 #include "auth.h"
 #include "session.h"
+#include "kv.h"
 
 #define PORT 8000
 
@@ -101,31 +102,39 @@ static const char *_http_connection_sessid(struct MHD_Connection *connection) {
              MHD_COOKIE_KIND, NAK_SESSION_COOKIE);
 }
 
-static int _http_set_session_cookie(struct MHD_Connection *connection,
-                  struct MHD_Response *response, const char* sessid) {
-    char cookie[512];
-    snprintf(cookie , sizeof cookie, "%s=%s", NAK_SESSION_COOKIE, sessid);
-    if (MHD_NO == MHD_set_connection_value(connection, MHD_HEADER_KIND,
-                                 MHD_HTTP_HEADER_SET_COOKIE, cookie)) {
-        return 1;
-    }
+static int _http_set_cookie(struct MHD_Response *response, const char *key,
+                                                       const char *value) {
+    char cookie[4096];
+    snprintf(cookie, sizeof cookie, "%s=%s", key, value);
+    return MHD_NO != MHD_add_response_header(response,
+                  MHD_HTTP_HEADER_SET_COOKIE, cookie);
+}
 
-    if (response == NULL)
-        return 0;
-    if (MHD_NO == MHD_add_response_header(response,
-             MHD_HTTP_HEADER_SET_COOKIE, cookie)) {
-        return 1;
+static int _http_set_session_cookie(struct MHD_Response *response,
+                                             const char *sessid) {
+    return _http_set_cookie(response, NAK_SESSION_COOKIE, sessid);
+}
+
+static int _http_set_cookies(struct MHD_Response *response, json_object *jkv) {
+    json_object_object_foreach(jkv, key, jval) {
+        nakd_assert(json_object_get_type(jval) == json_type_string);
+        const char *value = json_object_get_string(jval);
+        if (_http_set_cookie(response, key, value))
+            return 1;
     }
     return 0;
 }
 
-static int _http_queue_response(const char *text, const char *sessid, int code,
-                                           struct MHD_Connection *connection) {
+static int _http_queue_response(const char *text, const char *sessid,
+                                     json_object *jcookies, int code, 
+                                 struct MHD_Connection *connection) {
     struct MHD_Response *mhd_response = MHD_create_response_from_buffer(
                    strlen(text), (void *)(text), MHD_RESPMEM_MUST_COPY);
 
     if (sessid != NULL)
-        _http_set_session_cookie(connection, mhd_response, sessid);
+        _http_set_session_cookie(mhd_response, sessid);
+    if (jcookies != NULL)
+        _http_set_cookies(mhd_response, jcookies);
 
     int ret = MHD_queue_response(connection, code, mhd_response);
     MHD_destroy_response(mhd_response);
@@ -222,24 +231,76 @@ static int _http_auth_handler(void *cls,
           const char *method,
           const char *version,
           const char *post_data, size_t *post_data_size, void **ptr) {
+    const char *logout = MHD_lookup_connection_value(connection,
+                               MHD_GET_ARGUMENT_KIND, "logout");
+    if (logout != NULL) {
+        const char *sessid = _http_connection_sessid(connection);
+        nakd_session_destroy(sessid);
+        return _http_queue_response("OK", NULL, NULL, MHD_HTTP_OK, connection);
+    }
+
     const char* user = MHD_lookup_connection_value(connection,
                                MHD_GET_ARGUMENT_KIND, "user");
     const char* pass = MHD_lookup_connection_value(connection,
                                MHD_GET_ARGUMENT_KIND, "pass");
     if (user == NULL || pass == NULL)
-        return _http_queue_response("Bad request.", NULL, 400, connection);
+        return _http_queue_response("Bad request.", NULL, NULL, 400, connection);
 
     if (!nakd_authenticate(user, pass)) {
         char sessid[64];
         nakd_gen_sessid(sessid);
 
         enum nakd_access_level acl = nakd_get_user_acl(user);
-        nakd_session_create(sessid, acl);
-        return _http_queue_response(sessid, sessid, MHD_HTTP_OK, connection);
+        nakd_session_create(sessid, user, acl);
+        return _http_queue_response(sessid, sessid, NULL, MHD_HTTP_OK, connection);
     }
 
     /* reply with HTTP 401 Unauthorised */
-    return _http_queue_response("Login incorrect.", NULL, 401, connection);
+    return _http_queue_response("Login incorrect.", NULL, NULL, 401, connection);
+}
+
+static int _store_cookie_kv_it(void *cls, enum MHD_ValueKind kind,
+                             const char *key, const char *value) {
+    json_object *jkv = cls;
+    json_object *jv = json_object_new_string(value);
+    if (strcmp(key, NAK_SESSION_COOKIE))
+        json_object_object_add(jkv, key, jv);
+    return MHD_YES;
+}
+
+static int _store_cookie_kv(const char *user,
+         struct MHD_Connection *connection) {
+    json_object *jcookies = json_object_new_object();
+    MHD_get_connection_values(connection, MHD_COOKIE_KIND, _store_cookie_kv_it,
+                                                                     jcookies);
+    return nakd_kv_set_bulk(user, jcookies);
+}
+
+static int _http_session_handler(void *cls,
+          struct MHD_Connection *connection,
+          const char *url,
+          const char *method,
+          const char *version,
+          const char *post_data, size_t *post_data_size, void **ptr) {
+    const char *sessid = _http_connection_sessid(connection);
+    if (sessid == NULL) {
+        return _http_queue_response("Bad request - no sessid.", NULL,
+                                              NULL, 400, connection);
+    }
+    if (!nakd_session_exists(sessid)) {
+        return _http_queue_response("Bad request - bad sessid.", NULL,
+                                               NULL, 400, connection);
+    }
+
+    json_object *jusername = nakd_session_get_user(sessid); 
+    const char *username = json_object_get_string(jusername);
+    nakd_assert(nakd_user_exists(username));
+
+    _store_cookie_kv(username, connection);
+    json_object *jukv = nakd_kv(username);
+    json_object_put(jusername);
+
+    return _http_queue_response("OK", sessid, jukv, MHD_HTTP_OK, connection);
 }
 
 struct http_handler {
@@ -248,6 +309,7 @@ struct http_handler {
 } static _http_handlers[] = {
     { "/nak-rpc", _http_rpc_handler },
     { "/nak-auth", _http_auth_handler },
+    { "/nak-session", _http_session_handler },
     { NULL, NULL }
 };
 
@@ -264,7 +326,7 @@ static int _http_handler(void *cls,
                                                         post_data_size, ptr);
         }
     }
-    return _http_queue_response("No such object.", NULL, 404, connection);
+    return _http_queue_response("No such object.", NULL, NULL, 404, connection);
 }
 
 static void _httpd_logger(void *arg, const char *fmt, va_list ap) {
@@ -293,7 +355,7 @@ static int _httpd_cleanup(void) {
 static struct nakd_module module_httpd = {
     .name = "httpd",
     .deps = (const char *[]){ "config", "command", "workqueue", "auth",
-                                                     "session", NULL },
+                                               "session", "kv", NULL },
     .init = _httpd_init,
     .cleanup = _httpd_cleanup
 };
