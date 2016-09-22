@@ -7,5 +7,6 @@ int nakd_auth_set(const char *user, const char *pass,
                          enum nakd_access_level acl);
 enum nakd_access_level nakd_get_user_acl(const char *user);
 int nakd_auth_remove(const char *user);
+json_object *nakd_auth_list(void);
 
 #endif

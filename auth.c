@@ -181,6 +181,38 @@ int nakd_auth_remove(const char *user) {
     return ret;
 }
 
+static json_object *__nakd_auth_list(void) {
+    json_object *jresult = json_object_new_array();
+    nakd_assert(jresult != NULL);
+
+    for (int i = 0; i < json_object_array_length(_jpass); i++) {
+        json_object *jentry = json_object_array_get_idx(_jpass, i);
+
+        /* copy only a part of attributes */
+        json_object *juser = NULL;
+        json_object_object_get_ex(jentry, "user", &juser);
+        json_object *jacl = NULL;
+        json_object_object_get_ex(jentry, "acl", &jacl);
+        nakd_assert(juser != NULL && jacl != NULL);
+
+        json_object_get(juser);
+        json_object_get(jacl);
+
+        json_object *jre = json_object_new_object();
+        json_object_object_add(jre, "user", juser);
+        json_object_object_add(jre, "acl", jacl);
+        json_object_array_add(jresult, jre);
+    }
+    return jresult;
+}
+
+json_object *nakd_auth_list(void) {
+    nakd_mutex_lock(&_auth_mutex);
+    json_object *jret = __nakd_auth_list();
+    nakd_mutex_unlock(&_auth_mutex);
+    return jret;
+}
+
 static int _auth_init(void) {
     if ((_jpass = nakd_json_parse_file(AUTH_PATH)) == NULL)
         _jpass = json_object_new_array();
@@ -294,3 +326,18 @@ static struct nakd_command auth_remove = {
     .module = &module_auth
 };
 NAKD_DECLARE_COMMAND(auth_remove);
+
+json_object *cmd_auth_list(json_object *jcmd, void *arg) {
+    return nakd_auth_list();
+}
+
+static struct nakd_command auth_list = {
+    .name = "auth_list",
+    .desc = "Lists user accounts.",
+    .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"auth_list\","
+                                                 " \"id\": 42}",
+    .handler = cmd_auth_list,
+    .access = ACCESS_USER,
+    .module = &module_auth
+};
+NAKD_DECLARE_COMMAND(auth_list);
