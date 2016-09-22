@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <linux/limits.h>
 #include <json-c/json.h>
 #include <uuid/uuid.h>
 #include "httpd.h"
@@ -16,11 +15,9 @@
 #include "thread.h"
 #include "json.h"
 #include "auth.h"
+#include "session.h"
 
 #define PORT 8000
-
-#define SESSION_DIR "/tmp/nakd_sessions"
-#define NAK_SESSION_COOKIE "nak_sessid" 
 
 struct http_request {
     struct MHD_Connection *connection;
@@ -99,72 +96,9 @@ static void _http_rpc_timeout(void *priv) {
     nakd_log(L_CRIT, "RPC timeout while handling: %s", jstr);
 }
 
-static json_object *_http_get_session_data(const char *sessid) {
-    char sess_path[PATH_MAX];
-    snprintf(sess_path, sizeof sess_path, "%s/%s", SESSION_DIR, sessid);
-    return nakd_json_parse_file(sess_path);
-}
-
-static enum nakd_access_level _http_session_acl(
-            struct MHD_Connection *connection) {
-    enum nakd_access_level acl = ACCESS_ALL;
-    const char *sessid = MHD_lookup_connection_value(connection,
-                           MHD_COOKIE_KIND, NAK_SESSION_COOKIE);
-    if (sessid == NULL)
-        goto ret;
-
-    json_object *jsessdata = _http_get_session_data(sessid);
-    if (jsessdata == NULL)
-        goto ret;
-
-    json_object *jacl = NULL;
-    json_object_object_get_ex(jsessdata, "acl", &jacl);
-    if (jacl == NULL)
-        goto cleanup;
-
-    nakd_assert(json_object_get_type(jacl) == json_type_string);
-    acl = nakd_acl_from_string(json_object_get_string(jacl));
-
-cleanup:
-    json_object_put(jsessdata);
-    /* null-safe */
-    json_object_put(jacl);
-ret:
-    return acl;
-}
-
-static int _http_store_session_data(const char *sessid,
-                              json_object *jsessdata) {
-    char sess_path[PATH_MAX];
-    snprintf(sess_path, sizeof sess_path, "%s/%s", SESSION_DIR, sessid);
-
-    nakd_assert(jsessdata != NULL);
-    const char *jdatastr = json_object_to_json_string_ext(jsessdata,
-                                           JSON_C_TO_STRING_PRETTY);
-
-    FILE *fp = fopen(sess_path, "w");
-    if (fp == NULL)
-        return 0;
-    fputs(jdatastr, fp);
-    fclose(fp);
-    return 1;
-}
-
-/* Reserve at least 37 bytes for sessid */
-static void _http_gen_sessid(char *sessid) {
-    uuid_t uuid;
-    /* uses /dev/urandom */
-    uuid_generate_random(uuid);
-    uuid_unparse_lower(uuid, sessid);
-}
-
-static int _http_create_session(const char *sessid,
-                      enum nakd_access_level acl) {
-    json_object *jsessdata = json_object_new_object();
-    json_object *jacl = json_object_new_string(
-         nakd_access_level_string[(int)(acl)]);
-    json_object_object_add(jsessdata, "acl", jacl);
-    return _http_store_session_data(sessid, jsessdata);
+static const char *_http_connection_sessid(struct MHD_Connection *connection) {
+    return MHD_lookup_connection_value(connection,
+             MHD_COOKIE_KIND, NAK_SESSION_COOKIE);
 }
 
 static int _http_set_session_cookie(struct MHD_Connection *connection,
@@ -244,7 +178,8 @@ static int _http_rpc_handler(void *cls,
              */
             MHD_suspend_connection(req->connection);
 
-            enum nakd_access_level acl = _http_session_acl(req->connection);
+            enum nakd_access_level acl = nakd_session_acl(
+                _http_connection_sessid(req->connection));
             nakd_handle_message(acl, req->jrequest, _http_rpc_completion,
                                                  _http_rpc_timeout, req);
             struct MHD_Response *mhd_response =
@@ -296,10 +231,10 @@ static int _http_auth_handler(void *cls,
 
     if (!nakd_authenticate(user, pass)) {
         char sessid[64];
-        _http_gen_sessid(sessid);
+        nakd_gen_sessid(sessid);
 
         enum nakd_access_level acl = nakd_get_user_acl(user);
-        _http_create_session(sessid, acl);
+        nakd_session_create(sessid, acl);
         return _http_queue_response(sessid, sessid, MHD_HTTP_OK, connection);
     }
 
@@ -337,9 +272,6 @@ static void _httpd_logger(void *arg, const char *fmt, va_list ap) {
 }
 
 static int _httpd_init(void) {
-    if (access(SESSION_DIR, X_OK))
-        nakd_assert(!mkdir(SESSION_DIR, 770));
-
     _daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY |
                    MHD_USE_SUSPEND_RESUME | MHD_USE_DEBUG,
                    PORT, NULL, NULL, &_http_handler, NULL, 
@@ -360,7 +292,8 @@ static int _httpd_cleanup(void) {
 
 static struct nakd_module module_httpd = {
     .name = "httpd",
-    .deps = (const char *[]){ "config", "command", "workqueue", "auth", NULL },
+    .deps = (const char *[]){ "config", "command", "workqueue", "auth",
+                                                     "session", NULL },
     .init = _httpd_init,
     .cleanup = _httpd_cleanup
 };
