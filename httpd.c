@@ -87,6 +87,7 @@ static void _http_rpc_completion(json_object *jresponse, void *priv) {
     c->response_string = json_object_to_json_string_ext(jresponse,
                                          JSON_C_TO_STRING_PRETTY);
     c->response_len = strlen(c->response_string);
+    nakd_log(L_DEBUG, "Sending HTTP response: %s", c->response_string);
     MHD_resume_connection(c->connection);
 }
 
