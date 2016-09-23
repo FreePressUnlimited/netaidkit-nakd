@@ -106,7 +106,7 @@ static int _http_set_cookie(struct MHD_Response *response, const char *key,
                                                        const char *value) {
     char cookie[4096];
     snprintf(cookie, sizeof cookie, "%s=%s", key, value);
-    return MHD_NO != MHD_add_response_header(response,
+    return MHD_NO == MHD_add_response_header(response,
                   MHD_HTTP_HEADER_SET_COOKIE, cookie);
 }
 

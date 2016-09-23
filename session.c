@@ -92,6 +92,9 @@ int nakd_session_create(const char *sessid, const char *username,
 enum nakd_access_level nakd_session_acl(const char *sessid) {
     enum nakd_access_level acl = ACCESS_ALL;
 
+    if (sessid == NULL)
+        goto ret;
+
     json_object *jsessdata = nakd_session_get_data(sessid);
     if (jsessdata == NULL)
         goto ret;
