@@ -806,9 +806,6 @@ static void _reset_requested_wlan(void) {
 }
 
 int nakd_wlan_connect(json_object *jnetwork) {
-    if (nakd_wlan_connecting())
-        return 0;
-
     _set_requested_wlan(jnetwork);
 
     nakd_mutex_lock(&_wlan_mutex);
@@ -1060,7 +1057,8 @@ json_object *cmd_wlan_connect(json_object *jcmd, void *arg) {
         goto unlock;
     }
 
-    if (nakd_work_pending(nakd_wq, _connect_desc.name)) {
+    if (nakd_work_pending(nakd_wq, _connect_desc.name) ||
+                               nakd_wlan_connecting() ) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
                               "Invalid request - already connecting");
         goto unlock;
