@@ -419,7 +419,7 @@ static void _wlan_scan_iwinfo_work(void *priv) {
         nakd_log(L_WARNING, "Couldn't initialize iwinfo backend (intf: %s)",
                                                               iwctx_ifname);
         scan->status = 1;
-        goto unlock_uci;
+        return;
     }
 
     /*
@@ -435,10 +435,10 @@ static void _wlan_scan_iwinfo_work(void *priv) {
                                                              &len)) {
         nakd_log(L_CRIT, "Scanning not possible");
         scan->status = 1;
-        goto unlock_uci;
+        return;
     } else if (len <= 0) {
         nakd_log(L_DEBUG, "No scan results");
-        goto unlock_uci;
+        return;
     }
 
     nakd_log(L_DEBUG, "Processing scan results.");
@@ -496,9 +496,6 @@ static void _wlan_scan_iwinfo_work(void *priv) {
         json_object_put(_wireless_networks);
     _wireless_networks = jresults;
     _last_scan = monotonic_time();
-
-unlock_uci:
-    nakd_uci_unlock();
 } 
 
 static void _cleanup_iwinfo_scan(struct iwinfo_scan_priv *scan) {
@@ -506,6 +503,8 @@ static void _cleanup_iwinfo_scan(struct iwinfo_scan_priv *scan) {
         free(scan->networks);
     if (scan->iwctx != NULL)
         iwinfo_finish();
+
+    nakd_uci_unlock();
 
     scan->networks = NULL;
     scan->iwctx = NULL;
