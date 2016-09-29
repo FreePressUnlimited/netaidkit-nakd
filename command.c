@@ -113,6 +113,7 @@ void nakd_call_command(enum nakd_access_level acl, const char *cmd_name,
     }
 
     struct call_command_data *d = malloc(sizeof(struct call_command_data));
+    nakd_assert(d != NULL);
     d->cmd = cmd;
     d->jcmd = jcmd;
     d->cb = cb;
@@ -120,6 +121,7 @@ void nakd_call_command(enum nakd_access_level acl, const char *cmd_name,
     d->priv = priv;
 
     struct work *command_work = nakd_alloc_work(&_call_command_desc);
+    nakd_assert(command_work != NULL);
     command_work->desc.priv = d;
 
     nakd_workqueue_add(nakd_wq, command_work);

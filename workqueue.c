@@ -242,6 +242,7 @@ void nakd_workqueue_destroy(struct workqueue **wq) {
 }
 
 void nakd_workqueue_add(struct workqueue *wq, struct work *work) {
+    nakd_log(L_DEBUG, "workqueue: scheduling \"%s\"", work->desc.name);
     nakd_mutex_lock(&wq->lock);
     struct work *new = __add_work(wq, work);
     new->status = WORK_QUEUED;
