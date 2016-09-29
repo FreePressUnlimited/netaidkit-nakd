@@ -64,6 +64,8 @@ static void _call_command(void *priv) {
         }
     }
 
+    nakd_log(L_DEBUG, "Running RPC handler: %s (module: %s)", d->cmd->name,
+                                                     d->cmd->module->name);
     jresponse = d->cmd->handler(d->jcmd, d->cmd->priv);
 
 response:
