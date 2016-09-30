@@ -21,8 +21,8 @@ void _nakd_mutex_lock(pthread_mutex_t *lock, const char *lock_name,
             if (try > 3)
                 nakd_terminate("Deadlock. Terminating...");
         } else if (lock_status) {
-            nakd_log(L_CRIT, "error while locking mutex: %s",
-                                      strerror(lock_status));
+            nakd_terminate("Error while locking mutex: %s",
+                                    strerror(lock_status));
         } else {
             break;
         }
