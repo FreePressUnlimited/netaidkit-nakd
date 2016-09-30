@@ -205,6 +205,8 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
     nakd_assert(ev->events & EPOLLIN);
 
     int nb_read = 0;
+    enum json_tokener_error jerr = json_tokener_continue;
+    json_object *jmsg = NULL;
     socklen_t c_len = sizeof c->sockaddr;
     for (;;) {
         int s = recvfrom(c->sockfd, message_buf, sizeof message_buf, MSG_DONTWAIT,
@@ -232,12 +234,14 @@ static void _connection_handler(struct epoll_event *ev, void *priv) {
             _connection_shutdown(c);
             return;
         }
+
+        /* partial JSON strings are stored in tokener context */
+        jmsg = json_tokener_parse_ex(c->jtok, message_buf, s);
+        jerr = json_tokener_get_error(c->jtok);
+        if (jerr != json_tokener_continue)
+            break;
     }
     c->nb_read += nb_read;
-
-    /* partial JSON strings are stored in tokener context */
-    json_object *jmsg = json_tokener_parse_ex(c->jtok, message_buf, nb_read);
-    enum json_tokener_error jerr = json_tokener_get_error(c->jtok);
 
     if (jerr == json_tokener_continue)
         return;
