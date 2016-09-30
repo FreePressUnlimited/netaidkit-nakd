@@ -247,8 +247,11 @@ void nakd_workqueue_add(struct workqueue *wq, struct work *work) {
     struct work *new = __add_work(wq, work);
     new->status = WORK_QUEUED;
     pthread_cond_signal(&wq->cv);
-    if (work->desc.synchronous)
-        pthread_cond_wait(&work->completed_cv, &wq->lock);
+    if (work->desc.synchronous) {
+        do {
+            pthread_cond_wait(&work->completed_cv, &wq->lock);
+        } while (work->status != WORK_DONE);
+    }
     pthread_mutex_unlock(&wq->lock);
 }
 
