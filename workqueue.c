@@ -176,7 +176,6 @@ static void _workqueue_loop(struct nakd_thread *thr) {
         if (!sigsetjmp(work->canceled_jmpbuf, 1)) {
             work->status = WORK_PROCESSING;
             work->desc.impl(work->desc.priv);
-            work->status = WORK_DONE;
         } else {
             work->status = WORK_CANCELED;
         }
@@ -186,12 +185,26 @@ static void _workqueue_loop(struct nakd_thread *thr) {
             nakd_log(L_DEBUG, "workqueue: finished \"%s\", took %ds",
                                  work->desc.name, now - work->start_time);
 
-        pthread_cond_broadcast(&work->completed_cv);
-
         nakd_mutex_lock(&_status_lock);
         priv->current = NULL;
         pthread_mutex_unlock(&_status_lock);
-        if (!work->desc.synchronous)
+
+        if (work->status == WORK_PROCESSING)
+            work->status = WORK_DONE;
+
+        /* 
+         * Copy whatever is necessary from *work before waking up
+         * completed_cv threads, which might call nakd_free_work()
+         */ 
+        int synchronous = work->desc.synchronous;
+
+        pthread_cond_broadcast(&work->completed_cv);
+
+        /*
+         * If the workqueue job wasn't synchronous, *work shouldn't
+         * be touched again after calling nakd_workqueue_add()
+         */
+        if (!synchronous)
             nakd_free_work(work);
     }
     pthread_mutex_unlock(&wq->lock);
@@ -250,7 +263,7 @@ void nakd_workqueue_add(struct workqueue *wq, struct work *work) {
     if (work->desc.synchronous) {
         do {
             pthread_cond_wait(&work->completed_cv, &wq->lock);
-        } while (work->status != WORK_DONE);
+        } while (work->status != WORK_DONE && work->status != WORK_CANCELED);
     }
     pthread_mutex_unlock(&wq->lock);
 }
