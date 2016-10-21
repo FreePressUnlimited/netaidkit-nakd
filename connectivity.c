@@ -21,7 +21,7 @@
 #define CONNECTIVITY_SCRIPT_PATH(zone) NAKD_SCRIPT_PATH "connectivity/" zone
 #define GW_ARPING_SCRIPT NAKD_SCRIPT("util/arping_gateway.sh")
 #define GW_IP_SCRIPT NAKD_SCRIPT("util/gateway_ip.sh")
-#define CONNECTIVITY_UPDATE_INTERVAL 5000 /* ms */
+#define CONNECTIVITY_UPDATE_INTERVAL 20000 /* ms */
 
 static pthread_mutex_t _connectivity_mutex;
 static struct nakd_timer *_connectivity_update_timer;
