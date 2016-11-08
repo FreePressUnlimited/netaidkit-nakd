@@ -134,8 +134,14 @@ static void _connectivity_update(void *priv) {
         }
     }
 
-    nakd_log(L_INFO, "No Ethernet or wireless connection, looking for WLAN"
-                                                            " candidate.");
+    nakd_log(L_INFO, "No Ethernet or wireless connection.");
+
+    if (!nakd_wlan_stored_netcount()) {
+        nakd_log(L_INFO, "No WLAN candidates.");
+        goto unlock;
+    }
+
+    nakd_log(L_INFO, "Looking for a WLAN candidate.");
     nakd_wlan_scan();
 
     json_object *jnetwork = nakd_wlan_candidate();

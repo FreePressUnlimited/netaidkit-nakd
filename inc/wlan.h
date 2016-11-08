@@ -28,6 +28,7 @@ const char *nakd_wlan_interface_name(void);
 const char *nakd_ap_interface_name(void);
 
 void nakd_wlan_reset_stored(void);
+int nakd_wlan_stored_netcount(void);
 
 json_object *cmd_wlan_list_stored(json_object *jcmd, void *arg);
 json_object *cmd_wlan_list(json_object *jcmd, void *arg);

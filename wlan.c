@@ -166,6 +166,13 @@ void nakd_wlan_reset_stored(void) {
     pthread_mutex_unlock(&_wlan_mutex);
 }
 
+int nakd_wlan_stored_netcount(void) {
+    nakd_mutex_lock(&_wlan_mutex);
+    int ret = json_object_array_length(_stored_networks);
+    pthread_mutex_unlock(&_wlan_mutex);
+    return ret;
+}
+
 static json_object *__find_network(const char *ssid) {
     if (_wireless_networks == NULL)
         return NULL;
