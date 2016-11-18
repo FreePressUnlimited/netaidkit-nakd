@@ -1456,7 +1456,7 @@ static struct nakd_command wlan_scan = {
     .desc = "Triggers wireless network scan. Does not return results.",
     .usage = "{\"jsonrpc\": \"2.0\", \"method\": \"wlan_scan\", \"id\": 42}",
     .handler = cmd_wlan_scan,
-    .access = ACCESS_USER,
+    .access = ACCESS_ALL,
     .module = &module_wlan
 };
 NAKD_DECLARE_COMMAND(wlan_scan);
