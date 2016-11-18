@@ -59,6 +59,7 @@ static int _start_openvpn(struct stage *stage);
 static int _stop_openvpn(struct stage *stage);
 static int _run_uci_hooks(struct stage *stage);
 static int _reset_wlan(struct stage *stage);
+static int _reset_default_stage(struct stage *stage);
 
 static struct stage _stage_reset = {
     .name = "reset",
@@ -75,6 +76,11 @@ static struct stage _stage_reset = {
             .work = _reset_wlan
        },
        { 
+            .name = "Resetting stage configuration",
+            .desc = "",
+            .work = _reset_default_stage
+       },
+       { 
             .name = "Calling UCI hooks",
             .desc = "",
             .work = _run_uci_hooks 
@@ -88,6 +94,7 @@ static struct stage _stage_reset = {
     },
     .hooks = _firewall_hooks,
     .connectivity_level = CONNECTIVITY_NONE,
+    .update_default_stage = 0,
     .led = {
         .name = "stage_reset",
         .priority = LED_PRIORITY_MODE,
@@ -123,6 +130,7 @@ static struct stage _stage_offline = {
     },
     .hooks = _firewall_hooks,
     .connectivity_level = CONNECTIVITY_NONE,
+    .update_default_stage = 1,
     .led = {
         .name = "stage_offline",
         .priority = LED_PRIORITY_MODE,
@@ -158,6 +166,7 @@ static struct stage _stage_vpn = {
     },
     .hooks = _firewall_hooks,
     .connectivity_level = CONNECTIVITY_LOCAL,
+    .update_default_stage = 1,
     .led = {
         .name = "stage_vpn",
         .priority = LED_PRIORITY_MODE,
@@ -193,6 +202,7 @@ static struct stage _stage_tor = {
     },
     .hooks = _firewall_hooks,
     .connectivity_level = CONNECTIVITY_LOCAL,
+    .update_default_stage = 1,
     .led = {
         .name = "stage_tor",
         .priority = LED_PRIORITY_MODE,
@@ -228,6 +238,7 @@ static struct stage _stage_online = {
     },
     .hooks = _firewall_hooks,
     .connectivity_level = CONNECTIVITY_LOCAL,
+    .update_default_stage = 1,
     .led = {
         .name = "stage_online",
         .priority = LED_PRIORITY_MODE,
@@ -347,6 +358,10 @@ static int _reset_wlan(struct stage *stage) {
     nakd_wlan_reset_stored();
     nakd_wlan_disconnect();
     return 0;
+}
+
+static int _reset_default_stage(struct stage *stage) {
+    return nakd_config_set("stage", _stage_offline.name);
 }
 
 static void _stage_spec(void *priv) {
@@ -475,7 +490,7 @@ static int _stage_spec_update_requested(struct stage *stage, int save) {
     nakd_mutex_lock(&_stage_change_mutex);
     nakd_mutex_lock(&_stage_status_mutex);
     _requested_stage = stage;
-    if (save)
+    if (save == 1 || save == -1 && stage->update_default_stage)
         nakd_config_set("stage", stage->name);
     pthread_mutex_unlock(&_stage_status_mutex);
     pthread_mutex_unlock(&_stage_change_mutex);
@@ -503,7 +518,7 @@ int nakd_stage(const char *stage_name) {
         return 1;
     }
 
-    nakd_stage_spec(stage, 1);
+    nakd_stage_spec(stage, -1);
     return 0;
 }
 

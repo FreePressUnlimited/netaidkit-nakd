@@ -21,6 +21,7 @@ struct stage {
     const struct stage_step *work;
     enum nakd_connectivity connectivity_level;
     struct led_condition led;
+    int update_default_stage;
 
     struct nakd_uci_hook *hooks;
 };
