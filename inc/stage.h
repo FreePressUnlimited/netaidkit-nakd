@@ -7,7 +7,7 @@
 #include "led.h"
 
 struct stage;
-typedef int (*stage_work)(struct stage *stage);
+typedef int (*stage_work)(const struct stage *stage);
 
 struct stage_step {
     const char *name;
@@ -18,7 +18,8 @@ struct stage_step {
 struct stage {
     const char *name;
     const char *desc;
-    const struct stage_step *work;
+    const struct stage_step *work_start;
+    const struct stage_step *work_stop;
     enum nakd_connectivity connectivity_level;
     struct led_condition led;
     int update_default_stage;

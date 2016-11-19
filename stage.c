@@ -54,22 +54,17 @@ static void _clear_stage_status(void) {
     pthread_mutex_unlock(&_stage_status_mutex);
 }
 
-static int _run_stage_scripts(struct stage *stage);
-static int _start_openvpn(struct stage *stage);
-static int _stop_openvpn(struct stage *stage);
-static int _run_uci_hooks(struct stage *stage);
-static int _reset_wlan(struct stage *stage);
-static int _reset_default_stage(struct stage *stage);
+static int _run_stage_scripts(const struct stage *stage);
+static int _start_openvpn(const struct stage *stage);
+static int _stop_openvpn(const struct stage *stage);
+static int _run_uci_hooks(const struct stage *stage);
+static int _reset_wlan(const struct stage *stage);
+static int _reset_default_stage(const struct stage *stage);
 
 static struct stage _stage_reset = {
     .name = "reset",
     .desc = "",
-    .work = (struct stage_step[]){
-       { 
-            .name = "Stopping OpenVPN",
-            .desc = "",
-            .work = _stop_openvpn
-       },
+    .work_start = (struct stage_step[]){
        { 
             .name = "Resetting WLAN",
             .desc = "",
@@ -107,15 +102,41 @@ static struct stage _stage_reset = {
     },
 };
 
+static struct stage _stage_setup = {
+    .name = "setup",
+    .desc = "",
+    .work_start = (struct stage_step[]){
+       { 
+            .name = "Calling UCI hooks",
+            .desc = "",
+            .work = _run_uci_hooks 
+       },
+       { 
+            .name = "Running stage shell script",
+            .desc = "",
+            .work = _run_stage_scripts 
+       },
+       {}
+    },
+    .hooks = _firewall_hooks,
+    .connectivity_level = CONNECTIVITY_NONE,
+    .update_default_stage = 1,
+    .led = {
+        .name = "stage_offline",
+        .priority = LED_PRIORITY_MODE,
+        .states = (struct led_state[]){
+            { "LED1_path", NULL, 1 },
+            { "LED2_path", NULL, 1 },
+            {}
+        },
+        .blink.on = 0,
+    },
+};
+
 static struct stage _stage_offline = {
     .name = "offline",
     .desc = "",
-    .work = (struct stage_step[]){
-       { 
-            .name = "Stopping OpenVPN",
-            .desc = "",
-            .work = _stop_openvpn
-       },
+    .work_start = (struct stage_step[]){
        { 
             .name = "Calling UCI hooks",
             .desc = "",
@@ -146,7 +167,7 @@ static struct stage _stage_offline = {
 static struct stage _stage_vpn = {
     .name = "vpn",
     .desc = "",
-    .work = (struct stage_step[]){
+    .work_start = (struct stage_step[]){
        { 
             .name = "Calling UCI hooks",
             .desc = "",
@@ -161,6 +182,14 @@ static struct stage _stage_vpn = {
             .name = "Starting OpenVPN",
             .desc = "",
             .work = _start_openvpn
+       },
+       {}
+    },
+    .work_stop = (struct stage_step[]){
+       { 
+            .name = "Stopping OpenVPN",
+            .desc = "",
+            .work = _stop_openvpn
        },
        {}
     },
@@ -182,12 +211,7 @@ static struct stage _stage_vpn = {
 static struct stage _stage_tor = {
     .name = "tor",
     .desc = "",
-    .work = (struct stage_step[]){
-       { 
-            .name = "Stopping OpenVPN",
-            .desc = "",
-            .work = _stop_openvpn
-       },
+    .work_start = (struct stage_step[]){
        { 
             .name = "Calling UCI hooks",
             .desc = "",
@@ -218,12 +242,7 @@ static struct stage _stage_tor = {
 static struct stage _stage_online = {
     .name = "online",
     .desc = "",
-    .work = (struct stage_step[]){
-       { 
-            .name = "Stopping OpenVPN",
-            .desc = "",
-            .work = _stop_openvpn
-       },
+    .work_start = (struct stage_step[]){
        { 
             .name = "Calling UCI hooks",
             .desc = "",
@@ -253,6 +272,7 @@ static struct stage _stage_online = {
 
 static struct stage *_stages[] = {
     &_stage_reset,
+    &_stage_setup,
     &_stage_offline,
     &_stage_vpn,
     &_stage_tor,
@@ -276,12 +296,9 @@ static struct led_condition _led_stage_working = {
 static struct stage *_current_stage = NULL;
 static struct stage *_requested_stage = NULL;
 
-static int _step_count(struct stage *stage) {
-    if (stage->work == NULL)
-        return 0;
-
+static int _step_count(const struct stage_step *work) {
     int n = 0;
-    for (const struct stage_step *step = stage->work; step->name; step++)
+    for (; work->name; work++)
         n++;
     return n;
 }
@@ -315,7 +332,7 @@ static void toggle_rule(const char *hook_name, const char *state,
     nakd_assert(!uci_set(ctx, &new_opt_enabled_ptr));
 }
 
-static int _run_stage_scripts(struct stage *stage) {
+static int _run_stage_scripts(const struct stage *stage) {
     char dirpath[PATH_MAX];
     snprintf(dirpath, sizeof dirpath, NAKD_STAGE_SCRIPT_DIR_FMT, stage->name);
     nakd_uci_lock();
@@ -323,7 +340,7 @@ static int _run_stage_scripts(struct stage *stage) {
     nakd_uci_unlock();
 }
 
-static int _start_openvpn(struct stage *stage) {
+static int _start_openvpn(const struct stage *stage) {
     if (nakd_start_openvpn()) {
         nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Internal error while starting OpenVPN daemon";
@@ -333,7 +350,7 @@ static int _start_openvpn(struct stage *stage) {
     return 0;
 }
 
-static int _stop_openvpn(struct stage *stage) {
+static int _stop_openvpn(const struct stage *stage) {
     if (nakd_stop_openvpn()) {
         nakd_mutex_lock(&_stage_status_mutex);
         _stage_status.error = "Internal error while stopping OpenVPN daemon";
@@ -343,7 +360,7 @@ static int _stop_openvpn(struct stage *stage) {
     return 0;
 }
 
-static int _run_uci_hooks(struct stage *stage) {
+static int _run_uci_hooks(const struct stage *stage) {
     if (nakd_call_uci_hooks(stage->hooks, stage->name,
               (const char *[]){ "firewall", NULL })) {
         nakd_mutex_lock(&_stage_status_mutex);
@@ -354,14 +371,39 @@ static int _run_uci_hooks(struct stage *stage) {
     return 0;
 }
 
-static int _reset_wlan(struct stage *stage) {
+static int _reset_wlan(const struct stage *stage) {
     nakd_wlan_reset_stored();
     nakd_wlan_disconnect();
     return 0;
 }
 
-static int _reset_default_stage(struct stage *stage) {
-    return nakd_config_set("stage", _stage_offline.name);
+static int _reset_default_stage(const struct stage *stage) {
+    return nakd_config_set("stage", _stage_setup.name);
+}
+
+static int _run_stage_steps(const struct stage *stage,
+                      const struct stage_step *steps) {
+    if (steps == NULL)
+        return 0;
+
+    _clear_stage_status();
+    nakd_mutex_lock(&_stage_status_mutex);
+    _stage_status.step_count = _step_count(steps);
+    pthread_mutex_unlock(&_stage_status_mutex);
+
+    for (; steps->name != NULL; steps++) {
+        nakd_mutex_lock(&_stage_status_mutex);
+        _stage_status.step++;
+        _stage_status.step_name = steps->name;
+        pthread_mutex_unlock(&_stage_status_mutex);
+
+        nakd_log(L_INFO, "Stage %s step: %s (%d/%d)", stage->name,
+                                  steps->name, _stage_status.step,
+                                        _stage_status.step_count);
+        if (steps->work(stage))
+            return 1;
+    }
+    return 0;
 }
 
 static void _stage_spec(void *priv) {
@@ -376,9 +418,7 @@ static void _stage_spec(void *priv) {
     }
     pthread_mutex_unlock(&_stage_status_mutex);
 
-    nakd_mutex_lock(&_stage_status_mutex);
-    __clear_stage_status();
-    pthread_mutex_unlock(&_stage_status_mutex);
+    _clear_stage_status();
 
     enum nakd_connectivity current_connectivity = nakd_connectivity();
     enum nakd_connectivity needed_connectivity =
@@ -396,24 +436,21 @@ static void _stage_spec(void *priv) {
         goto unlock;
     }
 
+    if (_current_stage != NULL) {
+        nakd_log(L_INFO, "Cleaning up after %s stage.", _current_stage->name);
+        if(_run_stage_steps(_current_stage, _current_stage->work_stop))
+            goto unlock;
+    }
+
     nakd_log(L_INFO, "Stage %s", _requested_stage->name);
     struct stage *previous = _current_stage;
 
-    nakd_mutex_lock(&_stage_status_mutex);
-    _stage_status.step_count = _step_count(_requested_stage);
-    pthread_mutex_unlock(&_stage_status_mutex);
-    for (const struct stage_step *step = _requested_stage->work;
-                                   step->name != NULL; step++) {
-        nakd_mutex_lock(&_stage_status_mutex);
-        _stage_status.step++;
-        _stage_status.step_name = step->name;
-        pthread_mutex_unlock(&_stage_status_mutex);
-
-        nakd_log(L_INFO, "Stage %s step: %s (%d/%d)", _requested_stage->name,
-                   step->name, _stage_status.step, _stage_status.step_count);
-        if (step->work(_requested_stage))
-            goto unlock;
-    }
+    /*
+     * stage_step implementation will return 1 with updated
+     * _stage_status->error in case of failure.
+     */
+    if (_run_stage_steps(_requested_stage, _requested_stage->work_start))
+        goto unlock;
 
     nakd_mutex_lock(&_stage_status_mutex);
     _current_stage = _requested_stage;
