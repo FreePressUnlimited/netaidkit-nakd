@@ -1,0 +1,1 @@
+../../util/dnsmasq_restore_defaults.sh
