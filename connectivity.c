@@ -119,19 +119,10 @@ static void _connectivity_update(void *priv) {
             json_object *jcurrent = nakd_wlan_current();
             if (jcurrent != NULL) {
                 const char *current_ssid = nakd_net_ssid(jcurrent);
-
-                nakd_wlan_scan();
-                if (!nakd_wlan_in_range(current_ssid)) {
-                    nakd_wlan_set_autoconnect(current_ssid, 0);
-                    nakd_wlan_disconnect();
-                    json_object_put(jcurrent);
-                } else {
-                    nakd_log(L_DEBUG, "\"%s\" network is still in range,"
-                                         " continuing...", current_ssid);
-                    json_object_put(jcurrent);
-                    goto unlock;
-                }
+                nakd_wlan_set_autoconnect(current_ssid, 0);
+                nakd_wlan_disconnect();
             }
+            json_object_put(jcurrent);
         }
     }
 
