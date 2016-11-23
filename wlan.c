@@ -123,6 +123,31 @@ static json_object *__get_stored_network(const char *ssid) {
     return NULL;
 }
 
+int nakd_wlan_set_autoconnect(const char *ssid, int autoconnect) {
+    nakd_mutex_lock(&_wlan_mutex);
+
+    int ret = 1;
+    json_object *jstored = __get_stored_network(ssid);
+    if (jstored == NULL) {
+        nakd_log(L_WARNING, "Unknown network: %s", ssid);
+        goto unlock;
+    }
+
+    /* refcount 1 */
+    json_object *jauto = json_object_new_int(autoconnect);
+    json_object_object_add(jstored, "auto", jauto);
+
+    if (__save_stored_networks()) {
+        nakd_log(L_CRIT, "Couldn't modify \"%s\" network configuration.", ssid);
+        goto unlock;
+    }
+
+    ret = 0;
+unlock:
+    nakd_mutex_unlock(&_wlan_mutex);
+    return ret;
+}
+
 static void __remove_stored_network(const char *ssid) {
     nakd_assert(_stored_networks != NULL);
 

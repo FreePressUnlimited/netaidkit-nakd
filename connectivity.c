@@ -122,6 +122,7 @@ static void _connectivity_update(void *priv) {
 
                 nakd_wlan_scan();
                 if (!nakd_wlan_in_range(current_ssid)) {
+                    nakd_wlan_set_autoconnect(current_ssid, 0);
                     nakd_wlan_disconnect();
                     json_object_put(jcurrent);
                 } else {

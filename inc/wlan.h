@@ -4,6 +4,7 @@
 
 int nakd_wlan_store_network(const char *ssid, const char *key,
                                              int autoconnect);
+int nakd_wlan_set_autoconnect(const char *ssid, int autoconnect);
 
 json_object *nakd_wlan_candidate(void);
 int nakd_wlan_netcount(void);
