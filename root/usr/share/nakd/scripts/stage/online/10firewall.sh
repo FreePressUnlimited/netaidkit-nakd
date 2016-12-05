@@ -1,2 +1,1 @@
-#!/bin/sh
-/etc/init.d/firewall restart
+../../util/reset_iptables.sh
