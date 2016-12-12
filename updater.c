@@ -9,6 +9,7 @@
 #include "jsonrpc.h"
 #include "json.h"
 #include "shell.h"
+#include "stage.h"
 #include "updater.h"
 
 #define UPDATER_PATH "/sbin/sysupgrade"
@@ -17,11 +18,9 @@ static void _async_sysupgrade_work(void *priv) {
     json_object *jparams = priv;
     const char *path = json_object_get_string(jparams);
 
-    /*
-     * The updater will kill all running processes, let's give the RPC response 
-     * a chance to reach the user.
-     */
-    sleep(1);
+    /* Make sure OpenVPN and Tor daemons aren't running to free RAM. */
+    if (nakd_stage("stage_offline"))
+        nakd_log(L_CRIT, "nakd_stage() failed");
 
     if (access(path, R_OK)) {
         nakd_log(L_CRIT, "Can't access the update image at \"%s\"", path);
