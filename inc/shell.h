@@ -28,6 +28,11 @@ struct cmd_shell_spec {
 json_object *cmd_shell(json_object *jcmd, struct cmd_shell_spec *spec);
 extern struct nakd_module module_shell;
 
+/*
+ * Usage:
+ * struct nakd_command update = CMD_SHELL_NAKD(ACCESS_ADMIN, "update", "do_update.sh");
+ * NAKD_DECLARE_COMMAND(update);
+ */
 #define CMD_SHELL_ARGV(acl, cname, cwd, path, argv...) \
     { .name = cname, \
       .access = acl, \

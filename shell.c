@@ -330,6 +330,3 @@ response:
     nakd_log(L_DEBUG, "Returning response.");
     return jresponse;
 }
-
-struct nakd_command update = CMD_SHELL_NAKD(ACCESS_ADMIN, "update", "do_update.sh");
-NAKD_DECLARE_COMMAND(update);
