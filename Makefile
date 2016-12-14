@@ -12,7 +12,7 @@ CFLAGS += -std=c99 -D_GNU_SOURCE $(INC) -rdynamic -fPIE
 LDFLAGS += -pie
 
 LDLIBS += -lpthread -lrt -ljson-c -lubus -lubox -lblobmsg_json -luci -liwinfo \
-    -lnl-3 -lnl-route-3 -lnl-genl-3 -lmicrohttpd -luuid -lcrypt
+    -lnl-3 -lnl-route-3 -lnl-genl-3 -lmicrohttpd -luuid -lcrypt -lcrypto -lssl
 
 TARGETS = $(BUILD)/nakd
 

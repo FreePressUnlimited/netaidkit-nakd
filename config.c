@@ -22,6 +22,8 @@ struct nakd_config_default {
     { "LED2_path", "/sys/class/leds/gl-connect:red:wlan/brightness" },
     { "stage", "reset" },
     { "wlan_autoconnect", "1" },
+    { "update_pkey_path", "/etc/update-key" },
+    { "update_digest", "sha1WithRSAEncryption" },
     {}
 };
 
