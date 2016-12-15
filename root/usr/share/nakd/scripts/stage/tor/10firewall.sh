@@ -1,1 +1,1 @@
-../../util/reset_iptables.sh
+../../util/update_firewall.sh
