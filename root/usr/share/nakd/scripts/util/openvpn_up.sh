@@ -22,10 +22,11 @@ for env in $(cat /proc/self/environ | tr '\0' '{}'); do
 				echo server=$value >> $DNSMASQ_CONF
 				echo no-resolv >> $DNSMASQ_CONF
 
-				/etc/init.d/dnsmasq restart
+				/etc/init.d/dnsmasq start
 				exit 0
 			fi
 		fi
 	fi
 done
 
+/etc/init.d/dnsmasq start
