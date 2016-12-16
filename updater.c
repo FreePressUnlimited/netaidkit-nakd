@@ -144,6 +144,9 @@ static void _async_sysupgrade_work(void *priv) {
     struct update_params *uparams = priv;
     const char *path = json_object_get_string(uparams->jparams);
 
+    /* Allow RPC response to get back to the user */
+    sleep(1);
+
     /* Make sure OpenVPN and Tor daemons aren't running to free RAM. */
     if (nakd_stage("stage_offline"))
         nakd_log(L_CRIT, "nakd_stage() failed");
