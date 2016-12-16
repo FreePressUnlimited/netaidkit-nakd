@@ -629,6 +629,13 @@ const struct stage *nakd_stage_current(void) {
     return current;
 }
 
+const struct stage *nakd_stage_requested(void) {
+    nakd_mutex_lock(&_stage_status_mutex);
+    const struct stage *requested = (const struct stage *)(_requested_stage);
+    pthread_mutex_unlock(&_stage_status_mutex);
+    return requested ;
+}
+
 json_object *cmd_stage_current(json_object *jcmd, void *param) {
     json_object *jresponse;
 

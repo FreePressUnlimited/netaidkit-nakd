@@ -479,8 +479,21 @@ json_object *cmd_openvpn(json_object *jcmd, void *priv) {
     json_object *jresponse;
     json_object *jparams;
 
+    /*
+     *  TODO daemon plumbing
+     *  TODO 1. rename stage -> mode throughout the codebase
+     *  TODO 2. export modes from modules
+     *  TODO 3. import modules from .so plugins
+     *  TODO 4. acquire stage_status lock in RPC interface for every cmd_*()
+     *  TODO 5. replace workqueue.c impl with a priority queue
+     */
     const struct stage *current_stage = nakd_stage_current();
-    if (current_stage != NULL && strcmp(current_stage->name, "vpn")) {
+    /*
+     *  Don't serve RPC calls if we're turning VPN mode off.
+     */
+    const struct stage *requested_stage = nakd_stage_requested();
+    if (current_stage != NULL && strcmp(current_stage->name, "vpn") ||
+                                            requested_stage != NULL) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INVALID_REQUEST,
                  "Invalid request - only available in \"vpn\" stage");
         goto response;

@@ -28,6 +28,7 @@ struct stage {
 };
 
 const struct stage *nakd_stage_current(void);
+const struct stage *nakd_stage_requested(void);
 
 json_object *cmd_stage_set(json_object *jcmd, void *param);
 
