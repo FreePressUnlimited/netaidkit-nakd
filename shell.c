@@ -137,6 +137,13 @@ int nakd_shell_exec_argv(const char **argv, const char *cwd, int timeout_term,
         goto ret;
     }
 
+    if (cwd != NULL) {
+        if (access(cwd, R_OK)) {
+            nakd_log(L_CRIT, "Can't access working directory (%s)", cwd);
+            goto ret;
+        }
+    }
+
     response = malloc(MAX_SHELL_RESULT_LEN);
     if (response == NULL) {
         nakd_log(L_WARNING, "Couldn't allocate %d bytes for command response",
