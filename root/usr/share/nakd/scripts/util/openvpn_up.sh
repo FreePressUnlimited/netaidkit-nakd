@@ -28,4 +28,4 @@ for env in $(cat /proc/self/environ | tr '\0' '{}'); do
 done
 
 /etc/init.d/dnsmasq restart
-./util/enable_forwarding.sh
+/usr/share/nakd/scripts/util/enable_forwarding.sh
