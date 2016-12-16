@@ -233,9 +233,18 @@ response:
     return jresponse;
 }
 
+static int _updater_init(void) {
+    /*
+     *  Deprecated in OpenSSL 1.1.0.
+     */
+    OpenSSL_add_all_digests();
+    return 0;
+}
+
 static struct nakd_module module_updater = {
     .name = "updater",
     .deps = (const char *[]){ "command", "shell", NULL },
+    .init = _updater_init
 };
 NAKD_DECLARE_MODULE(module_updater);
 
