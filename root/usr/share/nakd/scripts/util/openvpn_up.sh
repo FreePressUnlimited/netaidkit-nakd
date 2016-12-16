@@ -27,5 +27,11 @@ for env in $(cat /proc/self/environ | tr '\0' '{}'); do
 	fi
 done
 
-/etc/init.d/dnsmasq restart
+# I can't trust "/etc/init.d/dnsmasq restart" with ensuring it's running
+# afterwards, I don't know why.
+# TODO test again and ask #openwrt @ freenode
+/etc/init.d/dnsmasq stop
+sleep 3
+/etc/init.d/dnsmasq start
+
 /usr/share/nakd/scripts/util/enable_forwarding.sh
