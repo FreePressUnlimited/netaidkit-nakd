@@ -236,6 +236,8 @@ static char **_call_command_multiline(const char *command) {
     char **lines = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
+    nakd_mutex_lock(&_command_mutex);
+
     if (_open_mgmt_socket())
         goto response;
     _flush();
@@ -267,6 +269,7 @@ err:
 csocket:
     _close_mgmt_socket();
 response:
+    nakd_mutex_unlock(&_command_mutex);
     return lines;
 }
 
