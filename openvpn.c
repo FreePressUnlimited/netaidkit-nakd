@@ -18,6 +18,7 @@
 #include "misc.h"
 #include "command.h"
 #include "stage.h"
+#include "nak_mutex.h"
 #include "module.h"
 
 #define SOCK_PATH "/run/nakd/openvpn.sock"
@@ -54,6 +55,7 @@ static int                _openvpn_sockfd = -1;
 static int                _openvpn_pid;
 
 static pthread_mutex_t _command_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _ovpn_rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int _kill_openvpn(int signal) {
     nakd_log(L_INFO, "Sending %s to OpenVPN, PID %d", strsignal(signal),
@@ -193,6 +195,8 @@ static char *_call_command(const char *command) {
     char *resp = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
+    nakd_mutex_lock(&_command_mutex);
+
     if (_open_mgmt_socket())
         goto response;
     _flush();
@@ -204,6 +208,7 @@ static char *_call_command(const char *command) {
 csocket:
     _close_mgmt_socket();
 response:
+    nakd_mutex_unlock(&_command_mutex);
     return resp;
 }
 
@@ -481,14 +486,14 @@ json_object *cmd_openvpn(json_object *jcmd, void *priv) {
         goto response;
     }
 
-    if ((jresponse = nakd_command_timedlock(jcmd, &_command_mutex)) != NULL)
+    if ((jresponse = nakd_command_timedlock(jcmd, &_ovpn_rpc_mutex)) != NULL)
         goto response;
 
     json_object *(*impl)(json_object *) = priv;
     jresponse = impl(jcmd);
 
 unlock:
-    pthread_mutex_unlock(&_command_mutex);
+    pthread_mutex_unlock(&_ovpn_rpc_mutex);
 response:
     return jresponse;
 }
