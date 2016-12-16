@@ -25,6 +25,7 @@
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
 #define AUTH_PATH "/nak/ovpn/auth.txt"
 #define UP_SCRIPT_PATH "/usr/share/nakd/scripts/util/openvpn_up.sh"
+#define OPENVPN_CWD "/usr/share/nakd/scripts"
 #define SCRIPT_SECURITY "2"
 
 static char * const _argv[] = {
@@ -276,6 +277,11 @@ response:
 int nakd_start_openvpn() {
     nakd_log_execution_point();
 
+    if (access(OPENVPN_CWD, R_OK)) {
+        nakd_log(L_CRIT, "Can't access OpenVPN working directory: " OPENVPN_CWD);
+        return -1;
+    }
+
     if (_access_config_file()) {
         nakd_log(L_CRIT, "Can't access OpenVPN config file at " CONFIG_PATH);
         return -1;
@@ -296,6 +302,7 @@ int nakd_start_openvpn() {
     log_execve(L_DEBUG, "Starting OpenVPN: %s", (const char * const *)(argv));
     if (pid == 0) /* child */ {
         setsid();
+        chdir(OPENVPN_CWD);
         execve(argv[0], argv, NULL);
         nakd_log(L_CRIT, "Couldn't start OpenVPN: %s", strerror(errno));
         return -1;
