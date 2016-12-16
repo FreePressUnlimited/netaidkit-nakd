@@ -20,7 +20,6 @@ for env in $(cat /proc/self/environ | tr '\0' '{}'); do
 
 				value=$(echo $value | awk -vRS= '{ print $3 }')
 				echo server=$value >> $DNSMASQ_CONF
-				echo no-resolv >> $DNSMASQ_CONF
 
 				/etc/init.d/dnsmasq start
 				exit 0
