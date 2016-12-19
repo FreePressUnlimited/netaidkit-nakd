@@ -20,6 +20,8 @@
 #include "stage.h"
 #include "nak_mutex.h"
 #include "module.h"
+#include "timer.h"
+#include "workqueue.h"
 
 #define SOCK_PATH "/run/nakd/openvpn.sock"
 #define CONFIG_PATH "/nak/ovpn/current.ovpn"
@@ -27,6 +29,8 @@
 #define UP_SCRIPT_PATH "/usr/share/nakd/scripts/util/openvpn_up.sh"
 #define OPENVPN_CWD "/usr/share/nakd/scripts"
 #define SCRIPT_SECURITY "2"
+
+#define STATE_UPDATE_INTERVAL 1000 /* ms */
 
 static char * const _argv[] = {
     "/usr/sbin/openvpn",
@@ -57,6 +61,10 @@ static int                _openvpn_pid;
 
 static pthread_mutex_t _command_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _ovpn_rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static json_object *_ovpn_state = NULL;
+static pthread_mutex_t _ovpn_state_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct nakd_timer *_ovpn_state_update_timer;
 
 static int _kill_openvpn(int signal) {
     nakd_log(L_INFO, "Sending %s to OpenVPN, PID %d", strsignal(signal),
@@ -137,7 +145,7 @@ static int _open_mgmt_socket(void) {
     _openvpn_sockaddr.sun_family = AF_UNIX;
     strncpy(_openvpn_sockaddr.sun_path, SOCK_PATH, sizeof SOCK_PATH);
     int len = sizeof(_openvpn_sockaddr.sun_family) + sizeof SOCK_PATH - 1;
-    set_socket_timeout(_openvpn_sockfd, 3);
+    set_socket_timeout(_openvpn_sockfd, 1);
     if (connect(_openvpn_sockfd, (struct sockaddr *)(&_openvpn_sockaddr), len)
                                                                       == -1) {
         nakd_log(L_WARNING, "Couldn't connect to OpenVPN management socket "
@@ -198,7 +206,7 @@ static char *_call_command(const char *command) {
 
     nakd_mutex_lock(&_command_mutex);
 
-    if (_open_mgmt_socket())
+    if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
     _flush();
     if (_writeline(command))
@@ -239,7 +247,7 @@ static char **_call_command_multiline(const char *command) {
 
     nakd_mutex_lock(&_command_mutex);
 
-    if (_open_mgmt_socket())
+    if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
     _flush();
     if (_writeline(command))
@@ -389,43 +397,21 @@ static json_object *_parse_state_line(const char *resp) {
     return jresult;
 }
 
-/* Commands in OpenVPN management console have different semantics, hence
- * the need for specialized handlers.
- */
 json_object *_call_state(json_object *jcmd) {
-    json_object *jresult = NULL;
     json_object *jresponse;
 
-    char **lines = _call_command_multiline("state");
-    if (lines == NULL) {
-        nakd_log(L_WARNING, "Couldn't get current state from OpenVPN daemon.");
+    nakd_mutex_lock(&_ovpn_state_mutex);
+    if (_ovpn_state == NULL) {
         jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                  "Internal error - while receiving OpenVPN response");
-        goto response;
+                     "Internal error - OpenVPN state not available");
+        goto unlock;
     }
 
-    jresult = json_object_new_array();
-    nakd_assert(jresult != NULL);  
+    json_object_get(_ovpn_state);
+    jresponse = nakd_jsonrpc_response_success(jcmd, _ovpn_state); 
 
-    /* a NULL-terminated array */
-    for (char **line = lines; *line != NULL; line++) {
-        json_object *jline = _parse_state_line(*line);
-        if (jline == NULL) {
-            jresponse = nakd_jsonrpc_response_error(jcmd, INTERNAL_ERROR,
-                      "Internal error - while parsing OpenVPN response");
-            goto free_result;
-        }
-
-        json_object_array_add(jresult, jline);
-    }
-
-    jresponse = nakd_jsonrpc_response_success(jcmd, jresult); 
-    goto free_input;
-
-free_result:
-    json_object_put(jresult);
-free_input:
-    _free_multiline(&lines);
+unlock:
+    nakd_mutex_unlock(&_ovpn_state_mutex);
 response:
     return jresponse;
 }
@@ -521,9 +507,71 @@ response:
     return jresponse;
 }
 
+static void _ovpn_state_update_async(void *priv) {
+    if (!_openvpn_pid)
+        return;
+
+    char **lines = _call_command_multiline("state");
+    if (lines == NULL) {
+        nakd_log(L_WARNING, "Couldn't get current state from OpenVPN daemon.");
+        return;
+    }
+
+    json_object *jstate = json_object_new_array();
+    nakd_assert(jstate != NULL);  
+
+    /* a NULL-terminated array */
+    for (char **line = lines; *line != NULL; line++) {
+        json_object *jline = _parse_state_line(*line);
+        if (jline == NULL) {
+            /*
+             *  jline shouldn't be NULL, _parse_state_line() logged error
+             */
+            json_object_put(jstate), jstate = NULL;
+            break;
+        }
+        json_object_array_add(jstate, jline);
+    }
+
+    nakd_mutex_lock(&_ovpn_state_mutex);
+    if (_ovpn_state != NULL)
+        json_object_put(_ovpn_state);
+    _ovpn_state = jstate;
+    nakd_mutex_unlock(&_ovpn_state_mutex);
+
+    _free_multiline(&lines);
+}
+
+static struct work_desc _ovpn_state_update_desc = {
+    .impl = _ovpn_state_update_async,
+    .name = "openvpn state update",
+    .timeout = 10
+};
+
+/* Commands in OpenVPN management console have different semantics, hence
+ * the need for specialized handlers.
+ */
+static void _ovpn_state_update_cb(siginfo_t *timer_info,
+                             struct nakd_timer *timer) {
+    if (!nakd_work_pending(nakd_wq, _ovpn_state_update_desc.name)) {
+        struct work *work = nakd_alloc_work(&_ovpn_state_update_desc);
+        nakd_workqueue_add(nakd_wq, work);
+    } else {
+        nakd_log(L_DEBUG, "There's already an openvpn update job in the"
+                                               " workqueue. Skipping.");
+    }
+}
+
+static int _openvpn_init(void) {
+    _ovpn_state_update_timer = nakd_timer_add(STATE_UPDATE_INTERVAL,
+              _ovpn_state_update_cb, NULL, "openvpn_state_updater");
+    return 0;
+}
+
 static struct nakd_module module_openvpn = {
     .name = "openvpn",
-    .deps = (const char *[]){ "command", NULL }
+    .deps = (const char *[]){ "command", "workqueue", "timer", NULL },
+    .init = _openvpn_init
 };
 NAKD_DECLARE_MODULE(module_openvpn);
 
