@@ -26,8 +26,8 @@
 static pthread_mutex_t _connectivity_mutex;
 static struct nakd_timer *_connectivity_update_timer;
 
-static int _connectivity_local;
-static int _connectivity_internet;
+static int _connectivity_local = 0;
+static int _connectivity_internet = 0;
 static pthread_mutex_t _connectivity_status_mutex;
 
 #define CONNECTIVITY_STRING_ENTRY(state) [state] = #state
@@ -235,9 +235,9 @@ int nakd_internet_connectivity(void) {
 }
 
 enum nakd_connectivity nakd_connectivity(void) {
-    if (nakd_internet_connectivity())
+    if (_connectivity_internet)
         return CONNECTIVITY_INTERNET;
-    if (nakd_local_connectivity())
+    if (_connectivity_local)
         return CONNECTIVITY_LOCAL;
     return CONNECTIVITY_NONE;
 }
