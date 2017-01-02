@@ -408,6 +408,21 @@ static int _run_stage_steps(const struct stage *stage,
     return 0;
 }
 
+static int _connectivity_check(const struct stage *stage,
+                         enum nakd_connectivity *current,
+                        enum nakd_connectivity *needed) {
+    enum nakd_connectivity current_connectivity = nakd_connectivity();
+    enum nakd_connectivity needed_connectivity = stage->connectivity_level;
+
+    if (current != NULL)
+        *current = current_connectivity;
+    if (needed != NULL)
+        *needed = needed_connectivity;
+
+    /* returns 0 if passed */
+    return (int)(current_connectivity) < (int)(needed_connectivity);
+}
+
 static void _stage_spec(void *priv) {
     nakd_mutex_lock(&_stage_change_mutex);
     nakd_led_condition_add(&_led_stage_working);
@@ -423,10 +438,9 @@ static void _stage_spec(void *priv) {
 
     _clear_stage_status();
 
-    enum nakd_connectivity current_connectivity = nakd_connectivity();
-    enum nakd_connectivity needed_connectivity =
-                _requested_stage->connectivity_level;
-    if ((int)(current_connectivity) < (int)(needed_connectivity)) {
+    enum nakd_connectivity current_connectivity;
+    enum nakd_connectivity needed_connectivity;
+    if (_connectivity_check(_requested_stage, &current_connectivity, &needed_connectivity)) {
         nakd_log(L_INFO, "Insufficient connectivity level for stage %s. "
                        "(current: %s, required: %s) - change postponed.",
                                                   _requested_stage->name,
@@ -570,7 +584,12 @@ json_object *cmd_stage_set(json_object *jcmd, void *param) {
         goto response;
     }
 
-    int busy = _requested_stage != NULL;
+    /*
+     *  If there already is a stage change queued and the connectivity
+     *  level is sufficient...
+     */
+    int busy = _requested_stage != NULL && !_connectivity_check(
+                                  _requested_stage, NULL, NULL);
     const char *requested_name;
     if (busy)
         requested_name = _requested_stage->name;
