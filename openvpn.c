@@ -40,6 +40,9 @@ static char * const _argv[] = {
     "--config", CONFIG_PATH,
     "--script-security", SCRIPT_SECURITY,
     "--up", UP_SCRIPT_PATH,
+    "--persist-tun",
+    "--persist-key",
+    "--persist-remote-ip",
     NULL
 };
 
@@ -52,6 +55,9 @@ static char * const _argv_auth[] = {
     "--auth-user-pass", AUTH_PATH,
     "--script-security", SCRIPT_SECURITY,
     "--up", UP_SCRIPT_PATH,
+    "--persist-tun",
+    "--persist-key",
+    "--persist-remote-ip",
     NULL
 };
 
