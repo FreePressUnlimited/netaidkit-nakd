@@ -100,6 +100,8 @@ static struct stage _stage_reset = {
         },
         .blink.on = 0,
     },
+    /* set this stage even if _current_stage == "reset" */
+    .force_set = 1
 };
 
 static struct stage _stage_setup = {
@@ -411,7 +413,8 @@ static void _stage_spec(void *priv) {
     nakd_led_condition_add(&_led_stage_working);
 
     nakd_mutex_lock(&_stage_status_mutex);
-    if (_requested_stage == NULL || _current_stage == _requested_stage) {
+    if (_requested_stage == NULL || (_current_stage == _requested_stage
+                                    && !_requested_stage->force_set)) {
         _requested_stage = NULL;
         pthread_mutex_unlock(&_stage_status_mutex);
         goto unlock;

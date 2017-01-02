@@ -23,6 +23,7 @@ struct stage {
     enum nakd_connectivity connectivity_level;
     struct led_condition led;
     int update_default_stage;
+    int force_set;
 
     struct nakd_uci_hook *hooks;
 };
