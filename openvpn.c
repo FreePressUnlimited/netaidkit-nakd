@@ -65,7 +65,7 @@ static struct sockaddr_un _openvpn_sockaddr;
 static int                _openvpn_sockfd = -1;
 static int                _openvpn_pid;
 
-static pthread_mutex_t _command_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _ovpn_daemon_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _ovpn_rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static json_object *_ovpn_state = NULL;
@@ -210,7 +210,7 @@ static char *_call_command(const char *command) {
     char *resp = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
-    nakd_mutex_lock(&_command_mutex);
+    nakd_mutex_lock(&_ovpn_daemon_mutex);
 
     if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
@@ -223,7 +223,7 @@ static char *_call_command(const char *command) {
 csocket:
     _close_mgmt_socket();
 response:
-    nakd_mutex_unlock(&_command_mutex);
+    nakd_mutex_unlock(&_ovpn_daemon_mutex);
     return resp;
 }
 
@@ -251,7 +251,7 @@ static char **_call_command_multiline(const char *command) {
     char **lines = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
-    nakd_mutex_lock(&_command_mutex);
+    nakd_mutex_lock(&_ovpn_daemon_mutex);
 
     if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
@@ -284,13 +284,11 @@ err:
 csocket:
     _close_mgmt_socket();
 response:
-    nakd_mutex_unlock(&_command_mutex);
+    nakd_mutex_unlock(&_ovpn_daemon_mutex);
     return lines;
 }
 
-int nakd_start_openvpn() {
-    nakd_log_execution_point();
-
+static int __start_openvpn(void) {
     if (access(OPENVPN_CWD, R_OK)) {
         nakd_log(L_CRIT, "Can't access OpenVPN working directory: " OPENVPN_CWD);
         return -1;
@@ -331,7 +329,14 @@ int nakd_start_openvpn() {
     return 0;
 }
 
-int nakd_stop_openvpn(void) {
+int nakd_start_openvpn(void) {
+    nakd_mutex_lock(&_ovpn_daemon_mutex);
+    int ret = __start_openvpn();
+    nakd_mutex_unlock(&_ovpn_daemon_mutex);
+    return ret;
+}
+
+static int __stop_openvpn(void) {
     if (!_openvpn_pid) {
         nakd_log(L_INFO, "Attempted to stop OpenVPN, but it isn't running.");
         return 0;
@@ -354,14 +359,22 @@ int nakd_stop_openvpn(void) {
     _openvpn_pid = 0;
 
     return 0;
+}
+
+int nakd_stop_openvpn(void) {
+    nakd_mutex_lock(&_ovpn_daemon_mutex);
+    int ret = __stop_openvpn();
+    nakd_mutex_unlock(&_ovpn_daemon_mutex);
+    return ret;
 } 
 
-int nakd_restart_openvpn(void) {
+static int __restart_openvpn(void) {
     /*
      *  OpenVPN drops privileges after init - restarting via _mgmt_signal()
      *  won't cut it.
      */
-    return nakd_stop_openvpn() || nakd_start_openvpn();
+
+    return __stop_openvpn() || __start_openvpn();
 
     /* Cause OpenVPN to close all TUN/TAP and network connections, restart, 
      * re-read the configuration file (if any), and reopen TUN/TAP and network
@@ -369,6 +382,13 @@ int nakd_restart_openvpn(void) {
      *
      *  return _mgmt_signal("SIGHUP");
      */
+}
+
+int nakd_restart_openvpn(void) {
+    nakd_mutex_lock(&_ovpn_daemon_mutex);
+    int ret = __restart_openvpn();
+    nakd_mutex_unlock(&_ovpn_daemon_mutex);
+    return ret;
 }
 
 static json_object *_parse_state_line(const char *resp) {
@@ -514,13 +534,22 @@ response:
 }
 
 static void _ovpn_state_update_async(void *priv) {
+    nakd_mutex_lock(&_ovpn_daemon_mutex);
     if (!_openvpn_pid)
-        return;
+        goto unlock;
+
+    /* 
+     * If OpenVPN is not running, but it should be, restart it.
+     */
+    if (_openvpn_pid && kill(_openvpn_pid, 0)) {
+        __restart_openvpn();
+        goto unlock;
+    }
 
     char **lines = _call_command_multiline("state");
     if (lines == NULL) {
         nakd_log(L_WARNING, "Couldn't get current state from OpenVPN daemon.");
-        return;
+        goto unlock;
     }
 
     json_object *jstate = json_object_new_array();
@@ -546,6 +575,9 @@ static void _ovpn_state_update_async(void *priv) {
     nakd_mutex_unlock(&_ovpn_state_mutex);
 
     _free_multiline(&lines);
+
+unlock:
+    nakd_mutex_unlock(&_ovpn_daemon_mutex);
 }
 
 static struct work_desc _ovpn_state_update_desc = {
