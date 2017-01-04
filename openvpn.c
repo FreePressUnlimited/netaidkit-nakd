@@ -346,12 +346,10 @@ static int __stop_openvpn(void) {
     /* Sending a SIGTERM to _openvpn_pid wouldn't deliver it to its child
      * processes, hence delivery via the management console.
      */
-    if (!kill(_openvpn_pid, 0)) {
-        /* If OpenVPN is still running: */
-        if (_mgmt_signal("SIGTERM")) {
-            /* In case the signal couldn't have been sent this way: */
-            _kill_openvpn(SIGTERM);
-        }
+    /* If OpenVPN is still running: */
+    if (_mgmt_signal("SIGTERM")) {
+        /* In case the signal couldn't have been sent this way: */
+        _kill_openvpn(SIGTERM);
     }
 
     nakd_log(L_INFO, "Waiting for OpenVPN to terminate, PID %d: ",
@@ -542,10 +540,13 @@ static void _ovpn_watchdog_async(void *priv) {
     /* 
      * If OpenVPN is not running, but it should be, restart it.
      */
-    if (_openvpn_pid && kill(_openvpn_pid, 0)) {
-        nakd_log(L_INFO, "Restarting OpenVPN...");
-        __restart_openvpn();
-        goto unlock;
+    if (_openvpn_pid) {
+        nakd_assert(!kill(_openvpn_pid, 0));
+        if (waitpid(_openvpn_pid, NULL, WUNTRACED | WNOHANG) == _openvpn_pid) {
+            nakd_log(L_INFO, "Restarting OpenVPN...");
+            __restart_openvpn();
+            goto unlock;
+        }
     }
 
     char **lines = _call_command_multiline("state");
