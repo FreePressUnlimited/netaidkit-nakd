@@ -609,10 +609,17 @@ static int _openvpn_init(void) {
     return 0;
 }
 
+static int _openvpn_cleanup(void) {
+    if (_openvpn_pid)
+        waitpid(_openvpn_pid, NULL, WUNTRACED);
+    return 0;
+}
+
 static struct nakd_module module_openvpn = {
     .name = "openvpn",
     .deps = (const char *[]){ "command", "workqueue", "timer", NULL },
-    .init = _openvpn_init
+    .init = _openvpn_init,
+    .cleanup = _openvpn_cleanup
 };
 NAKD_DECLARE_MODULE(module_openvpn);
 
