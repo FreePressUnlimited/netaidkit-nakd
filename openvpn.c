@@ -64,6 +64,7 @@ static char * const _argv_auth[] = {
 static struct sockaddr_un _openvpn_sockaddr;
 static int                _openvpn_sockfd = -1;
 static int                _openvpn_pid;
+static int                _openvpn_start_ts;
 
 static pthread_mutex_t _ovpn_command_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _ovpn_daemon_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -326,6 +327,7 @@ static int __start_openvpn(void) {
 
     /* parent */
     _openvpn_pid = pid;
+    _openvpn_start_ts = monotonic_time();
     nakd_log(L_INFO, "Started OpenVPN, PID %d", pid);
     return 0;
 }
@@ -537,21 +539,19 @@ static void _ovpn_watchdog_async(void *priv) {
     if (!_openvpn_pid)
         goto unlock;
 
-    /* 
-     * If OpenVPN is not running, but it should be, restart it.
-     */
-    if (_openvpn_pid) {
-        nakd_assert(!kill(_openvpn_pid, 0));
-        if (waitpid(_openvpn_pid, NULL, WUNTRACED | WNOHANG) == _openvpn_pid) {
-            nakd_log(L_INFO, "Restarting OpenVPN...");
-            __restart_openvpn();
-            goto unlock;
-        }
-    }
-
     char **lines = _call_command_multiline("state");
     if (lines == NULL) {
         nakd_log(L_WARNING, "Couldn't get current state from OpenVPN daemon.");
+
+        /* 
+         * If OpenVPN is not running, but it should be, restart it.
+         */
+        if (waitpid(_openvpn_pid, NULL, WUNTRACED | WNOHANG) == _openvpn_pid) {
+            if (monotonic_time() - _openvpn_start_ts > 10) {
+                nakd_log(L_INFO, "Restarting OpenVPN...");
+                __restart_openvpn();
+            }
+        }
         goto unlock;
     }
 
