@@ -65,6 +65,7 @@ static struct sockaddr_un _openvpn_sockaddr;
 static int                _openvpn_sockfd = -1;
 static int                _openvpn_pid;
 
+static pthread_mutex_t _ovpn_command_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _ovpn_daemon_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t _ovpn_rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -210,7 +211,7 @@ static char *_call_command(const char *command) {
     char *resp = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
-    nakd_mutex_lock(&_ovpn_daemon_mutex);
+    nakd_mutex_lock(&_ovpn_command_mutex);
 
     if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
@@ -223,7 +224,7 @@ static char *_call_command(const char *command) {
 csocket:
     _close_mgmt_socket();
 response:
-    nakd_mutex_unlock(&_ovpn_daemon_mutex);
+    nakd_mutex_unlock(&_ovpn_command_mutex);
     return resp;
 }
 
@@ -251,7 +252,7 @@ static char **_call_command_multiline(const char *command) {
     char **lines = NULL;
     nakd_log(L_DEBUG, "Calling OpenVPN management command: %s", command);
 
-    nakd_mutex_lock(&_ovpn_daemon_mutex);
+    nakd_mutex_lock(&_ovpn_command_mutex);
 
     if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
@@ -284,7 +285,7 @@ err:
 csocket:
     _close_mgmt_socket();
 response:
-    nakd_mutex_unlock(&_ovpn_daemon_mutex);
+    nakd_mutex_unlock(&_ovpn_command_mutex);
     return lines;
 }
 
