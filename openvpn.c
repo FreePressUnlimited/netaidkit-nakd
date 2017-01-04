@@ -71,7 +71,7 @@ static pthread_mutex_t _ovpn_rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static json_object *_ovpn_state = NULL;
 static pthread_mutex_t _ovpn_state_mutex = PTHREAD_MUTEX_INITIALIZER;
-static struct nakd_timer *_ovpn_state_update_timer;
+static struct nakd_timer *_ovpn_watchdog_timer;
 
 static int _kill_openvpn(int signal) {
     nakd_log(L_INFO, "Sending %s to OpenVPN, PID %d", strsignal(signal),
@@ -346,17 +346,17 @@ static int __stop_openvpn(void) {
     /* Sending a SIGTERM to _openvpn_pid wouldn't deliver it to its child
      * processes, hence delivery via the management console.
      */
-
-    if (_mgmt_signal("SIGTERM")) {
-        /* In case the signal couldn't have been sent this way: */
-        if (_kill_openvpn(SIGTERM))
-            _kill_openvpn(SIGKILL);
+    if (!kill(_openvpn_pid, 0)) {
+        /* If OpenVPN is still running: */
+        if (_mgmt_signal("SIGTERM")) {
+            /* In case the signal couldn't have been sent this way: */
+            _kill_openvpn(SIGTERM);
+        }
     }
-    _close_mgmt_socket();
 
     nakd_log(L_INFO, "Waiting for OpenVPN to terminate, PID %d: ",
                                                     _openvpn_pid);
-    waitpid(_openvpn_pid, NULL, 0);
+    waitpid(_openvpn_pid, NULL, WUNTRACED);
     _openvpn_pid = 0;
 
     return 0;
@@ -534,7 +534,7 @@ response:
     return jresponse;
 }
 
-static void _ovpn_state_update_async(void *priv) {
+static void _ovpn_watchdog_async(void *priv) {
     nakd_mutex_lock(&_ovpn_daemon_mutex);
     if (!_openvpn_pid)
         goto unlock;
@@ -543,6 +543,7 @@ static void _ovpn_state_update_async(void *priv) {
      * If OpenVPN is not running, but it should be, restart it.
      */
     if (_openvpn_pid && kill(_openvpn_pid, 0)) {
+        nakd_log(L_INFO, "Restarting OpenVPN...");
         __restart_openvpn();
         goto unlock;
     }
@@ -581,19 +582,19 @@ unlock:
     nakd_mutex_unlock(&_ovpn_daemon_mutex);
 }
 
-static struct work_desc _ovpn_state_update_desc = {
-    .impl = _ovpn_state_update_async,
-    .name = "openvpn state update",
+static struct work_desc _ovpn_watchdog_desc = {
+    .impl = _ovpn_watchdog_async,
+    .name = "openvpn watchdog",
     .timeout = 10
 };
 
 /* Commands in OpenVPN management console have different semantics, hence
  * the need for specialized handlers.
  */
-static void _ovpn_state_update_cb(siginfo_t *timer_info,
+static void _ovpn_watchdog_cb(siginfo_t *timer_info,
                              struct nakd_timer *timer) {
-    if (!nakd_work_pending(nakd_wq, _ovpn_state_update_desc.name)) {
-        struct work *work = nakd_alloc_work(&_ovpn_state_update_desc);
+    if (!nakd_work_pending(nakd_wq, _ovpn_watchdog_desc.name)) {
+        struct work *work = nakd_alloc_work(&_ovpn_watchdog_desc);
         nakd_workqueue_add(nakd_wq, work);
     } else {
         nakd_log(L_DEBUG, "There's already an openvpn update job in the"
@@ -602,8 +603,8 @@ static void _ovpn_state_update_cb(siginfo_t *timer_info,
 }
 
 static int _openvpn_init(void) {
-    _ovpn_state_update_timer = nakd_timer_add(STATE_UPDATE_INTERVAL,
-              _ovpn_state_update_cb, NULL, "openvpn_state_updater");
+    _ovpn_watchdog_timer = nakd_timer_add(STATE_UPDATE_INTERVAL,
+                  _ovpn_watchdog_cb, NULL, "openvpn_watchdogr");
     return 0;
 }
 
