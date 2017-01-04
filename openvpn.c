@@ -549,7 +549,7 @@ static void _ovpn_watchdog_async(void *priv) {
         if (waitpid(_openvpn_pid, NULL, WUNTRACED | WNOHANG) == _openvpn_pid) {
             if (monotonic_time() - _openvpn_start_ts > 10) {
                 nakd_log(L_INFO, "Restarting OpenVPN...");
-                __restart_openvpn();
+                __start_openvpn();
             }
         }
         goto unlock;
