@@ -30,7 +30,7 @@
 #define OPENVPN_CWD "/usr/share/nakd/scripts"
 #define SCRIPT_SECURITY "2"
 
-#define STATE_UPDATE_INTERVAL 1000 /* ms */
+#define STATE_UPDATE_INTERVAL 2000 /* ms */
 
 static char * const _argv[] = {
     "/usr/sbin/openvpn",
