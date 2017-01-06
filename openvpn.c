@@ -43,6 +43,7 @@ static char * const _argv[] = {
     "--persist-tun",
     "--persist-key",
     "--persist-remote-ip",
+    "--verb 2",
     NULL
 };
 
@@ -58,6 +59,7 @@ static char * const _argv_auth[] = {
     "--persist-tun",
     "--persist-key",
     "--persist-remote-ip",
+    "--verb 2",
     NULL
 };
 
