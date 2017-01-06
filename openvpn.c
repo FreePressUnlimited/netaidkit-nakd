@@ -616,7 +616,7 @@ static int _openvpn_init(void) {
 
 static int _openvpn_cleanup(void) {
     if (_openvpn_pid)
-        waitpid(_openvpn_pid, NULL, WUNTRACED);
+        nakd_stop_openvpn();
     return 0;
 }
 
