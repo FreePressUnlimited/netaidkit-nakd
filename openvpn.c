@@ -281,7 +281,6 @@ static char **_call_command_multiline(const char *command) {
 
         if (!strncmp(_line, "END", sizeof("END") - 1)) {
             free(_line);
-            _close_mgmt_socket();
             goto response;
         }
 
