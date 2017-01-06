@@ -141,7 +141,7 @@ static int _open_mgmt_socket(void) {
     if (_access_mgmt_socket()) {
         nakd_log(L_WARNING, "Can't access OpenVPN management socket at "
                                                              SOCK_PATH);
-        return -1;
+        goto err;
     }
 
     nakd_assert((_openvpn_sockfd = socket(AF_UNIX, SOCK_CLOEXEC | SOCK_STREAM,
@@ -158,6 +158,7 @@ static int _open_mgmt_socket(void) {
                                                                       == -1) {
         nakd_log(L_WARNING, "Couldn't connect to OpenVPN management socket "
                                        SOCK_PATH ". (%s)", strerror(errno));
+        goto err;
         return -1;
     }
 
@@ -166,13 +167,16 @@ static int _open_mgmt_socket(void) {
     char *info = _getline();
     if (info == NULL) {
         nakd_log(L_WARNING, "Couldn't get OpenVPN challenge line");
-        return -1;
+        goto err;
     } else {
         nakd_log(L_DEBUG, "OpenVPN challenge line: %s", info);
         free(info);
     }
 
     return 0;
+err:
+    _openvpn_sockfd = -1;
+    return -1;
 }
 
 static void _flush(void) {
@@ -217,13 +221,13 @@ static char *_call_command(const char *command) {
     if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
     _flush();
-    if (_writeline(command))
-        goto csocket;
+    if (_writeline(command)) {
+        _close_mgmt_socket();
+        goto response;
+    }
 
     resp = _getline();
 
-csocket:
-    _close_mgmt_socket();
 response:
     nakd_mutex_unlock(&_ovpn_command_mutex);
     return resp;
@@ -258,8 +262,10 @@ static char **_call_command_multiline(const char *command) {
     if (!_openvpn_pid || _open_mgmt_socket())
         goto response;
     _flush();
-    if (_writeline(command))
-        goto csocket;
+    if (_writeline(command)) {
+        _close_mgmt_socket();
+        goto response;
+    }
 
     /* read response */
     const size_t lines_max = 128;
@@ -275,7 +281,8 @@ static char **_call_command_multiline(const char *command) {
 
         if (!strncmp(_line, "END", sizeof("END") - 1)) {
             free(_line);
-            goto csocket;
+            _close_mgmt_socket();
+            goto response;
         }
 
         *line = _line;        
@@ -283,8 +290,6 @@ static char **_call_command_multiline(const char *command) {
 
 err:
      _free_multiline(&lines);
-csocket:
-    _close_mgmt_socket();
 response:
     nakd_mutex_unlock(&_ovpn_command_mutex);
     return lines;
@@ -353,6 +358,7 @@ static int __stop_openvpn(void) {
         /* In case the signal couldn't have been sent this way: */
         _kill_openvpn(SIGTERM);
     }
+    _close_mgmt_socket();
 
     nakd_log(L_INFO, "Waiting for OpenVPN to terminate, PID %d: ",
                                                     _openvpn_pid);
