@@ -114,7 +114,7 @@ static void _connectivity_update(void *priv) {
             goto unlock;
         } else {
             nakd_log(L_INFO, "Default gateway doesn't respond to ARP"
-                       " ping - checking if it's still in range...");
+                 " ping - disconnecting and disabling autoconnect.");
 
             json_object *jcurrent = nakd_wlan_current();
             if (jcurrent != NULL) {

@@ -76,3 +76,11 @@ int nakd_json_write_file(const char *path, json_object *jobj) {
     fclose(fp);
     return 0;
 }
+
+json_object *nakd_json_bool_from_string(const char *str) {
+    if (!strcasecmp(str, "true"))
+        return json_object_new_boolean(1);
+    if (!strcasecmp(str, "false"))
+        return json_object_new_boolean(0);
+    return NULL;
+}

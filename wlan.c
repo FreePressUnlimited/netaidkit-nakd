@@ -134,7 +134,7 @@ int nakd_wlan_set_autoconnect(const char *ssid, int autoconnect) {
     }
 
     /* refcount 1 */
-    json_object *jauto = json_object_new_int(autoconnect);
+    json_object *jauto = json_object_new_boolean(autoconnect);
     json_object_object_add(jstored, "auto", jauto);
 
     if (__save_stored_networks()) {
@@ -1274,17 +1274,26 @@ response:
     return jresponse;
 }
 
-static void _update_stored_config(json_object *jstored, json_object *jnew,
-                                    const char *key, int take_ownership) {
+static json_object *_update_stored_config(json_object *jcmd, json_object *jstored,
+                           json_object *jnew, const char *key, int take_ownership,
+                                                   enum json_type expected_type) {
     json_object *jnmembr = NULL;
     json_object_object_get_ex(jnew, key, &jnmembr);
 
     if (jnmembr != NULL) {
+        if (expected_type != json_type_null && json_object_get_type(jnmembr)
+                                                         != expected_type) {
+            return nakd_jsonrpc_response_error(jcmd, INVALID_PARAMS,
+                     "Invalid parameters - \"%s\" member should be "
+                                                   "a string", key);    
+        }
+
         /* refcount not incremented in json_object_object_add */
         if (take_ownership)
             json_object_get(jnmembr);
         json_object_object_add(jstored, key, jnmembr);
     }
+    return NULL;
 }
 
 json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
@@ -1317,10 +1326,34 @@ json_object *cmd_wlan_modify_stored(json_object *jcmd, void *arg) {
      *
      * TODO better jsonrpc API description.
      */
-    _update_stored_config(jnetwork, jparams, "key", 1);
-    _update_stored_config(jnetwork, jparams, "hidden", 1);
-    _update_stored_config(jnetwork, jparams, "auto", 1);
-    _update_stored_config(jnetwork, jparams, "encryption", 1);
+    if ((jresponse = _update_stored_config(jcmd, jnetwork, jparams, "key", 1,
+                                                json_type_string)) != NULL) {
+        goto unlock;
+    }
+    if ((jresponse = _update_stored_config(jcmd, jnetwork, jparams, "hidden", 1,
+                                                   json_type_string)) != NULL) {
+        goto unlock;
+    }
+    if ((jresponse = _update_stored_config(jcmd, jnetwork, jparams, "auto", 1,
+                                                json_type_boolean)) != NULL) {
+        /*
+         *  TODO enforce booleans
+         */
+        json_object *jauto;
+        json_object_object_get_ex(jparams, "auto", &jauto);
+        if (json_object_get_type(jauto) == json_type_string) {
+            json_object *jbauto = nakd_json_bool_from_string(
+                              json_object_get_string(jauto));
+            if (jbauto != NULL)
+                json_object_object_add(jnetwork, "auto", jbauto);
+        } else {
+            goto unlock;
+        }
+    }
+    if ((jresponse = _update_stored_config(jcmd, jnetwork, jparams, "encryption", 1,
+                                                       json_type_string)) != NULL) {
+        goto unlock;
+    }
 
     if (__save_stored_networks()) {
         nakd_log(L_CRIT, "Couldn't store network credentials for %s", ssid);
