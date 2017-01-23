@@ -1,5 +1,6 @@
 #!/bin/sh
 /usr/share/nakd/scripts/util/restore_defaults.sh
+cp /usr/share/nak/defaults/etc/tor/torrc /etc/tor/.
 
 # Make sure /run/tor exists and is accessible only by "tor" user,
 # otherwise Tor daemon will terminate.                           
