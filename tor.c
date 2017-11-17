@@ -246,14 +246,6 @@ static void _close_mgmt_socket(struct tor_cs *s) {
 
 /* update nakd_command ACL */
 static const char *_tor_acl[] = {
-    "GETINFO version",
-    "GETINFO circuit-status",
-    "GETINFO stream-status",
-    "GETINFO orconn-status",
-    "GETINFO traffic/read",
-    "GETINFO traffic/written",
-    "GETINFO network-liveness",
-    "GETINFO status/circuit-established",
     "GETINFO status/bootstrap-phase",
     NULL,
 };
