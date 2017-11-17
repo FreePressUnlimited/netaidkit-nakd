@@ -28,9 +28,12 @@ void log_execve(int priority, const char *format, const char * const argv[]) {
     char *execve_log = malloc(NAKD_MAX_ARG_STRLEN);
     nakd_assert(execve_log != NULL);
 
-    for (; *argv != NULL; argv++)
+    for (; *argv != NULL; argv++) {
         format_len += snprintf(execve_log + format_len, NAKD_MAX_ARG_STRLEN
                                                - format_len, " %s", *argv);
+        if (format_len >= NAKD_MAX_ARG_STRLEN)
+            break;
+    }
 
     nakd_log(priority, format, execve_log);
     free(execve_log);
