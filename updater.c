@@ -120,7 +120,7 @@ int nakd_check_update_signature(const char *update_path, FILE** fp_ex) {
         goto cleanup_mdctx;
     }
     rc = EVP_DigestVerifyFinal(mdctx, psignature, pkey_size);
-    if (!rc) {
+    if (rc == 1) {
         nakd_log(L_WARNING, "Wrong signature (%s).", update_path);
     } else {
         nakd_log(L_DEBUG, "Good signature (%s).", update_path);
