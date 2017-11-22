@@ -20,12 +20,20 @@ static pthread_mutex_t _session_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const char *__session_path(const char *sessid) {
     static char sess_path[PATH_MAX];
-    snprintf(sess_path, sizeof sess_path, "%s/%s", SESSION_DIR, sessid);
-    return sess_path;
+    uuid_t uuid;
+
+    if (!uuid_parse(sessid, &uuid)) {
+        snprintf(sess_path, sizeof sess_path, "%s/%s", SESSION_DIR, sessid);
+        return sess_path;
+    }
+    return NULL;
 }
 
 static json_object *__session_get_data(const char *sessid) {
-    return nakd_json_parse_file(__session_path(sessid));
+    const char *path = __session_path(sessid);
+    if (path != NULL)
+        return nakd_json_parse_file(path);
+    return NULL;
 }
 
 json_object *nakd_session_get_data(const char *sessid) {
@@ -116,6 +124,11 @@ ret:
 }
 
 void nakd_session_destroy(const char *sessid) {
+    uuid_t uuid;
+
+    if (uuid_parse(sessid, &uuid) == -1)
+        return;
+
     nakd_mutex_lock(&_session_mutex);
     unlink(__session_path(sessid));
     nakd_mutex_unlock(&_session_mutex);
