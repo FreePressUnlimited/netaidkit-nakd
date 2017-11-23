@@ -7,7 +7,7 @@ LDSCRIPT = $(patsubst %.ld, -T%.ld, $(wildcard *.ld))
 
 .PRECIOUS: $(DEPEND)
 
-INC = -Iinc -I../libnl-3.2.21/include # fix libnl3 package
+INC = -Iinc -I../libnl-3.3.0/include # fix libnl3 package
 CFLAGS += -std=c99 -D_GNU_SOURCE $(INC) -rdynamic -fPIE
 LDFLAGS += -pie
 
