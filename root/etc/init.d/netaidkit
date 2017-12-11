@@ -14,8 +14,8 @@ start_service() {
 
 boot() {
     # Clear LEDS
-    echo "0" > /sys/class/leds/gl-connect\:green\:lan/brightness
-    echo "0" > /sys/class/leds/gl-connect\:red\:wlan/brightness
+    echo "0" > /sys/class/leds/gl-inet\:green\:lan/brightness
+    echo "0" > /sys/class/leds/gl-inet\:red\:wlan/brightness
 
     # Set domain socket permissions
     chgrp www-data /run/nakd
