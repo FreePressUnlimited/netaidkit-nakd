@@ -1,2 +1,1 @@
-#!/bin/sh
-/etc/init.d/sysntpd restart
+../../util/sysntpd.sh
